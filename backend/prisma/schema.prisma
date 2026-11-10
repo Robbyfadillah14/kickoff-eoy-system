@@ -1,0 +1,172 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum RoleName {
+  SUPER_ADMIN
+  DEPARTMENT_MANAGER
+  DEPARTMENT_CONTRIBUTOR
+}
+
+enum ReportStatus {
+  DRAFT
+  SUBMITTED
+  REVISION_REQUESTED
+  APPROVED
+  LOCKED
+}
+
+model Plant {
+  id                      String                  @id @default(uuid())
+  name                    String                  @unique
+  code                    String                  @unique
+  isHolding               Boolean                 @default(false)
+  createdAt               DateTime                @default(now())
+  users                   User[]
+  reports                 Report[]
+  plantDepartmentAccesses PlantDepartmentAccess[]
+}
+
+model Department {
+  id                      String                  @id @default(uuid())
+  name                    String                  @unique
+  isActive                Boolean                 @default(true)
+  createdAt               DateTime                @default(now())
+  updatedAt               DateTime                @updatedAt
+
+  // Relasi Many-to-Many dengan User (1 user bisa pegang banyak departemen)
+  users                   UserDepartment[]
+  reports                 Report[]
+  plantDepartmentAccesses PlantDepartmentAccess[]
+}
+
+// Tabel perantara untuk 1 user pegang banyak departemen
+model UserDepartment {
+  id           String     @id @default(uuid())
+  userId       String
+  departmentId String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, departmentId])
+}
+
+model User {
+  id            String               @id @default(uuid())
+  name          String
+  email         String               @unique
+  passwordHash  String
+  role          RoleName
+  plantId       String?
+  plant         Plant?               @relation(fields: [plantId], references: [id])
+
+  // Ganti departmentId tunggal dengan relasi ke UserDepartment
+  departments   UserDepartment[]
+
+  createdAt     DateTime             @default(now())
+  refreshTokens RefreshToken[]
+  comments      Comment[]
+  auditLogs     AuditLog[]
+  resetTokens   PasswordResetToken[]
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  revoked   Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid())
+  token     String    @unique
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+}
+
+model Report {
+  id                 String       @id @default(uuid())
+  year               Int
+  plantId            String
+  plant              Plant        @relation(fields: [plantId], references: [id])
+  departmentId       String
+  department         Department   @relation(fields: [departmentId], references: [id])
+  status             ReportStatus @default(DRAFT)
+
+  achievementSummary String?
+  metricsJson        Json?
+
+  challenges         Json?
+  opportunities      Json?
+
+  rgtRun             String?
+  rgtGrow            String?
+  rgtTransform       String?
+
+  deadlineAt         DateTime?
+  lockedAt           DateTime?
+
+  attachments        Attachment[]
+  comments           Comment[]
+
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  @@unique([year, plantId, departmentId])
+}
+
+model Attachment {
+  id         String   @id @default(uuid())
+  reportId   String
+  report     Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  fileName   String
+  filePath   String
+  mimeType   String?
+  uploadedAt DateTime @default(now())
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  reportId  String
+  report    Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id])
+  body      String
+  createdAt DateTime @default(now())
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action    String
+  entity    String
+  entityId  String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+}
+
+// Model untuk menyimpan Passcode/PIN per kombinasi Plant & Divisi
+model PlantDepartmentAccess {
+  id           String     @id @default(uuid())
+  plantId      String
+  plant        Plant      @relation(fields: [plantId], references: [id], onDelete: Cascade)
+  departmentId String
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  accessCode   String     // PIN / Kode Akses rahasia divisi tersebut
+
+  createdAt    DateTime   @default(now())
+
+  @@unique([plantId, departmentId])
+}
