@@ -23,7 +23,7 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Load daftar Plant saat mode passcode aktif (menggunakan rute relatif internal Next.js)
+  // Load daftar Plant saat mode passcode aktif
   useEffect(() => {
     if (loginMode === "passcode") {
       fetch("/api/plants")
@@ -66,16 +66,12 @@ export default function LoginPage() {
         body: JSON.stringify({ email, password }),
       });
 
-      if (!res.ok) {
-        setError("Login gagal, cek email/password");
-        setLoading(false);
-        return;
-      }
-
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Login gagal, cek email/password");
+
       saveSessionAndRedirect(data);
     } catch (err) {
-      setError("Gagal terhubung ke server.");
+      setError(err.message || "Gagal terhubung ke server.");
       setLoading(false);
     }
   }
@@ -241,7 +237,6 @@ export default function LoginPage() {
             >
               {loading ? "Sedang masuk..." : "Login Admin"}
             </button>
-            <a href="#" className="block text-xs text-sub text-center hover:text-white pt-1">Lupa password?</a>
           </form>
         )}
       </div>
