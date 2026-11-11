@@ -13,37 +13,38 @@ export async function POST(request) {
       );
     }
 
-    // Cari department yang cocok dengan plant dan accessCode (passcode)
-    const department = await prisma.department.findFirst({
+    // Cari kecocokan di tabel PlantDepartmentAccess sesuai struktur Prisma-mu
+    const accessRecord = await prisma.plantDepartmentAccess.findFirst({
       where: {
-        id: departmentId,
         plantId: plantId,
-        passcode: accessCode,
+        departmentId: departmentId,
+        accessCode: accessCode,
       },
       include: {
         plant: true,
+        department: true,
       },
     });
 
-    if (!department) {
+    if (!accessRecord) {
       return NextResponse.json(
         { success: false, error: "Passcode salah atau kombinasi tidak valid" },
         { status: 401 }
       );
     }
 
-    // Buat data sesi/token tiruan sederhana (atau payload sukses)
+    // Format data sukses yang dikembalikan ke frontend
     const responseData = {
       success: true,
-      accessToken: "mock-jwt-token-" + department.id,
-      refreshToken: "mock-refresh-token-" + department.id,
+      accessToken: "mock-jwt-token-" + accessRecord.id,
+      refreshToken: "mock-refresh-token-" + accessRecord.id,
       user: {
-        id: department.id,
-        name: department.name,
+        id: accessRecord.department.id,
+        name: accessRecord.department.name,
         role: "DEPARTMENT",
-        plantId: department.plantId,
-        plantName: department.plant?.name,
-        departmentId: department.id,
+        plantId: accessRecord.plant.id,
+        plantName: accessRecord.plant.name,
+        departmentId: accessRecord.department.id,
       },
     };
 
