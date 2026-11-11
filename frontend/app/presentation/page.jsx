@@ -1,8 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { analyzePresentationContext } from "../../../lib/presentationEngine";
-
+import { analyzePresentationContext } from "../../lib/presentationEngine";
 export default function PresentationIndexPage() {
   const [user, setUser] = useState(null);
   const [departments, setDepartments] = useState([]);
