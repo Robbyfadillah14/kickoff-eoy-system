@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import { PrismaClient } from "@prisma/client";
+
+// Inisialisasi Prisma Client langsung agar tidak terkendala alias path error di Vercel
+const prisma = global.prisma || new PrismaClient();
+if (process.env.NODE_ENV !== "production") global.prisma = prisma;
 
 export async function GET(request, { params }) {
   try {
-    // Wajib pakai await params untuk Next.js App Router terbaru di Vercel
     const resolvedParams = await params;
-    const plantId = resolvedParams.plantId;
+    const plantId = resolvedParams.id; // Menyesuaikan nama parameter folder [id]
 
     const { searchParams } = new URL(request.url);
     const includeInactive = searchParams.get("includeInactive");

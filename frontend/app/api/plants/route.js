@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
-import prisma.js // (atau pastikan naik 4 tingkat karena ada tambahan folder [id]) -> 
-import prisma from "@/lib/prisma";
+import { PrismaClient } from "@prisma/client";
+
+const prisma = global.prisma || new PrismaClient();
+if (process.env.NODE_ENV !== "production") global.prisma = prisma;
 
 export async function GET() {
   try {
     const plants = await prisma.plant.findMany({
       orderBy: { name: "asc" },
     });
-    // Kembalikan langsung array atau format yang aman untuk frontend
     return NextResponse.json({ success: true, data: plants });
   } catch (error) {
     console.error("Gagal mengambil data plant:", error);
