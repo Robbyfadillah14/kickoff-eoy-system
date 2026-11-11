@@ -30,7 +30,9 @@ export default function LoginPage() {
       fetch(`${API_URL}/api/plants`)
         .then(res => res.json())
         .then(data => {
-          if (data.success) setPlants(data.data);
+          // Tangkap fleksibel: apakah langsung array, atau terbungkus di dalam data.data / data.plants
+          const plantList = Array.isArray(data) ? data : (data.data || data.plants || []);
+          setPlants(plantList);
         })
         .catch(err => console.error("Gagal load plant:", err));
     }
@@ -47,7 +49,8 @@ export default function LoginPage() {
     fetch(`${API_URL}/api/plants/${selectedPlant}/departments`)
       .then(res => res.json())
       .then(data => {
-        if (data.success) setDepartments(data.data);
+        const deptList = Array.isArray(data) ? data : (data.data || data.departments || []);
+        setDepartments(deptList);
       })
       .catch(err => console.error("Gagal load departemen:", err));
   }, [selectedPlant]);
