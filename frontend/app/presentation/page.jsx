@@ -1,8 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { apiFetch } from "../../lib/api";
-import { analyzePresentationContext } from "../../lib/presentationEngine";
+import { analyzePresentationContext } from "../../../lib/presentationEngine";
 
 export default function PresentationIndexPage() {
   const [user, setUser] = useState(null);
@@ -17,7 +16,7 @@ export default function PresentationIndexPage() {
       window.location.href = "/login";
     }
 
-    apiFetch("/api/departments")
+    fetch("/api/departments")
       .then((r) => r.json())
       .then((data) => {
         const list = Array.isArray(data) ? data : data?.data || data?.departments || [];

@@ -1,7 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { API_URL } from "../../lib/api";
 import { BrandLogo } from "../../components/Branding";
 
 export default function LoginPage() {
@@ -24,13 +23,12 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Load daftar Plant saat mode passcode aktif
+  // Load daftar Plant saat mode passcode aktif (menggunakan rute relatif internal Next.js)
   useEffect(() => {
     if (loginMode === "passcode") {
-      fetch(`${API_URL}/api/plants`)
+      fetch("/api/plants")
         .then(res => res.json())
         .then(data => {
-          // Tangkap fleksibel: apakah langsung array, atau terbungkus di dalam data.data / data.plants
           const plantList = Array.isArray(data) ? data : (data.data || data.plants || []);
           setPlants(plantList);
         })
@@ -46,7 +44,7 @@ export default function LoginPage() {
       return;
     }
 
-    fetch(`${API_URL}/api/plants/${selectedPlant}/departments`)
+    fetch(`/api/plants/${selectedPlant}/departments`)
       .then(res => res.json())
       .then(data => {
         const deptList = Array.isArray(data) ? data : (data.data || data.departments || []);
@@ -62,7 +60,7 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const res = await fetch(`${API_URL}/api/auth/login`, {
+      const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
@@ -89,7 +87,7 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const res = await fetch(`${API_URL}/api/auth/login-passcode`, {
+      const res = await fetch("/api/auth/login-passcode", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -249,4 +247,4 @@ export default function LoginPage() {
       </div>
     </div> 
   );
-}  
+}

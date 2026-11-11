@@ -1,9 +1,7 @@
 "use client";
-
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { apiFetch } from "../../lib/api";
-import { Monitor, Calendar, Layers, UploadCloud, FileSpreadsheet, Trash2 } from "lucide-react";
+import { UploadCloud, FileSpreadsheet, Trash2 } from "lucide-react";
 
 // Import 14 Komponen Form Departemen yang Terpisah + Direktur Operasional
 import SalesForm from "./SalesForm";
@@ -84,7 +82,8 @@ export default function ReportFormPage() {
 
     if (urlYear) setYear(Number(urlYear));
 
-    apiFetch("/api/departments")
+    fetch("/api/departments")
+      .then(async (res) => res.json())
       .then(async (data) => {
         const list = Array.isArray(data) ? data : data?.data || data?.departments || [];
         setDepartments(list);
@@ -102,7 +101,8 @@ export default function ReportFormPage() {
         if (editId || (urlYear && targetPlantId && targetDeptId)) {
           try {
             let fetchUrl = editId ? `/api/reports/${editId}` : `/api/reports?year=${urlYear}&plantId=${targetPlantId}&departmentId=${targetDeptId}`;
-            const targetRepData = await apiFetch(fetchUrl);
+            const resRep = await fetch(fetchUrl);
+            const targetRepData = await resRep.json();
             
             if (targetRepData) {
               const targetRep = Array.isArray(targetRepData) ? targetRepData[0] : (targetRepData.data || targetRepData);
@@ -254,7 +254,12 @@ export default function ReportFormPage() {
     };
     
     try {
-      const resData = await apiFetch("/api/reports", { method: "POST", body: JSON.stringify(body) });
+      const res = await fetch("/api/reports", { 
+        method: "POST", 
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body) 
+      });
+      const resData = await res.json();
       const saved = resData?.data || resData?.report || resData;
       
       if (saved?.id) {

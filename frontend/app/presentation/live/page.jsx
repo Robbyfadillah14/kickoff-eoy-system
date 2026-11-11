@@ -3,7 +3,6 @@
 import { useEffect, useState, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { apiFetch } from "../../../lib/api";
 import { Monitor, Calendar } from "lucide-react";
 
 // Import komponen deck modular yang sudah ada di folder
@@ -37,7 +36,8 @@ function LivePresentationContent({ searchParams }) {
       window.location.href = "/login";
     }
 
-    apiFetch("/api/plants")
+    fetch("/api/plants")
+      .then((res) => res.json())
       .then((data) => {
         const list = Array.isArray(data) ? data : data?.data || data?.plants || [];
         setPlants(list);
@@ -65,7 +65,8 @@ function LivePresentationContent({ searchParams }) {
     }
 
     const qs = new URLSearchParams(paramsObj);
-    apiFetch(`/api/reports?${qs}`)
+    fetch(`/api/reports?${qs}`)
+      .then((res) => res.json())
       .then((data) => {
         const allReports = Array.isArray(data) ? data : data?.data || data?.reports || [];
         
