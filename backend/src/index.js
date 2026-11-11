@@ -51,3 +51,10 @@ startLockScheduler(io);
 
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => console.log(`Backend jalan di port ${PORT}`));
+// Tambahkan baris ini di paling bawah file backend/src/index.js
+module.exports = app;
+
+if (process.env.NODE_ENV !== "production") {
+  const PORT = process.env.PORT || 5000;
+  server.listen(PORT, () => console.log(`Backend jalan di port ${PORT}`));
+}
