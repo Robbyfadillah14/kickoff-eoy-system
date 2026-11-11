@@ -6,6 +6,7 @@ export async function GET() {
     const plants = await prisma.plant.findMany({
       orderBy: { name: "asc" },
     });
+    // Dibungkus agar cocok dengan 'data.success' dan 'data.data' di frontend
     return NextResponse.json({ success: true, data: plants });
   } catch (error) {
     console.error("Gagal mengambil data plant:", error);

@@ -4,7 +4,7 @@ import prisma from "@/lib/prisma";
 export async function GET(request, { params }) {
   try {
     const { id } = await params;
-    
+
     const departments = await prisma.department.findMany({
       where: { plantId: id },
       orderBy: { name: "asc" },
