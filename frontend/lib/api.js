@@ -1,4 +1,5 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
+// Paksa kosongkan API_URL agar menggunakan relative path domain Vercel saat ini (Monorepo)
+const API_URL = "";
 
 export async function apiFetch(path, options = {}) {
   const token = typeof window !== "undefined" 
@@ -17,8 +18,9 @@ export async function apiFetch(path, options = {}) {
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  // Gabungkan API_URL secara aman (menghindari path yang terpotong/undefined)
-  const fullUrl = path.startsWith("http") ? path : `${API_URL}${path.startsWith("/") ? "" : "/"}${path}`;
+  // Gabungkan API_URL secara aman
+  const cleanPath = path.startsWith("/") ? path : `/${path}`;
+  const fullUrl = cleanPath; // Karena API_URL = "", langsung gunakan path relatif (misal: "/api/plants")
 
   const res = await fetch(fullUrl, { ...options, headers, credentials: "include" });
   
