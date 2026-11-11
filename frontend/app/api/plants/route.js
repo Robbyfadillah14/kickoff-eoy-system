@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 
-const prisma = global.prisma || new PrismaClient();
-if (process.env.NODE_ENV !== "production") global.prisma = prisma;
+const globalForPrisma = global;
+const prisma = globalForPrisma.prisma || new PrismaClient();
+if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
 
 export async function GET() {
   try {
@@ -11,7 +12,7 @@ export async function GET() {
     });
     return NextResponse.json({ success: true, data: plants });
   } catch (error) {
-    console.error("Gagal mengambil data plant:", error);
-    return NextResponse.json({ success: false, error: "Gagal memuat plant" }, { status: 500 });
+    console.error("Error plants API:", error);
+    return NextResponse.json({ success: false, data: [] }, { status: 500 });
   }
 }
