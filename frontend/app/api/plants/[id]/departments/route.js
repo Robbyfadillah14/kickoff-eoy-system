@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 
-export async function GET(request, { params }) {
+export async function GET(request, context) {
   try {
-    const { id } = await params;
-
+    const params = await context.params;
+    const id = params.id;
+    
     const departments = await prisma.department.findMany({
       where: { plantId: id },
       orderBy: { name: "asc" },
