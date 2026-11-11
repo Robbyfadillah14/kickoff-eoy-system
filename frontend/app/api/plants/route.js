@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import prisma from "@/lib/prisma"; // Pastikan path prisma client-mu sesuai
+import prisma.js // (atau pastikan naik 4 tingkat karena ada tambahan folder [id]) -> 
+import prisma from "@/lib/prisma";
 
 export async function GET() {
   try {
