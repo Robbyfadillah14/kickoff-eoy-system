@@ -160,11 +160,13 @@ export default function ReportFormPage() {
   
   const currentDeptName = (currentDept.name || "").toLowerCase();
   
-  const isSalesDept = currentDeptName.includes("sales") || currentDeptName.includes("support");
+  const isSalesDept = currentDeptName.includes("sales") || currentDeptName.includes("support") || currentDeptName.includes("operasional");
 
   // MAPPING KOMPONEN FORM BERDASARKAN NAMA DEPARTEMEN (FLEKSIBEL) + ATTACHMENTS PROPS
   const renderDepartmentSpecificForm = () => {
-    if (currentDeptName.includes("operational director") || currentDeptName.includes("direktur operasional")) {
+    if (currentDeptName.includes("operasional") || currentDeptName.includes("operational")) {
+      return <SalesForm form={form} setForm={setForm} attachments={attachments} />;
+    } else if (currentDeptName.includes("operational director") || currentDeptName.includes("direktur operasional")) {
       return <OperationalDirectorForm form={form} setForm={setForm} attachments={attachments} />;
     } else if (currentDeptName.includes("sales") || currentDeptName.includes("support")) {
       return <SalesForm form={form} setForm={setForm} attachments={attachments} />;
