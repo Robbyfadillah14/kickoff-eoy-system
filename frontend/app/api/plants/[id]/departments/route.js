@@ -13,31 +13,22 @@ export async function GET(request, { params }) {
     const { searchParams } = new URL(request.url);
     const includeInactive = searchParams.get("includeInactive");
 
-    // Cari plant beserta relasi departemennya secara langsung dari tabel plant
-    const plant = await prisma.plant.findUnique({
-      where: { id: plantId },
+    // Mengambil data melalui tabel relasi yang benar: plantDepartmentAccesses
+    const accesses = await prisma.plantDepartmentAccess.findMany({
+      where: {
+        plantId: plantId,
+        ...(includeInactive === "true" ? {} : { department: { isActive: true } })
+      },
       include: {
-        plantDepartments: {
-          include: {
-            department: true
-          }
-        }
+        department: true
+      },
+      orderBy: {
+        department: { name: "asc" }
       }
     });
 
-    if (!plant) {
-      return NextResponse.json({ success: false, error: "Plant tidak ditemukan" }, { status: 404 });
-    }
-
-    // Ambil array departemen dari relasi, lalu filter status aktifnya jika diperlukan
-    let departments = plant.plantDepartments.map(pd => pd.department);
-    
-    if (includeInactive !== "true") {
-      departments = departments.filter(d => d.isActive);
-    }
-
-    // Urutkan berdasarkan nama secara alfabetis
-    departments.sort((a, b) => a.name.localeCompare(b.name));
+    // Ekstrak data departemen dari hasil relasi akses plant
+    const departments = accesses.map(item => item.department).filter(Boolean);
 
     return NextResponse.json({ success: true, data: departments });
   } catch (error) {
