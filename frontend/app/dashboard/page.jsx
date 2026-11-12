@@ -47,15 +47,27 @@ export default function DashboardPage() {
         setPlants([]);
       });
 
-    // 2. Ambil data master departments
+    // 2. Ambil data master departments (Di-handle multi-kondisi agar pasti masuk)
     apiFetch("/api/departments")
-      .then((data) => {
+      .then((res) => {
+        console.log("Raw departments response:", res);
         let list = [];
-        if (Array.isArray(data)) list = data;
-        else if (data?.data && Array.isArray(data.data)) list = data.data;
-        else if (data?.departments && Array.isArray(data.departments)) list = data.departments;
+        if (Array.isArray(res)) list = res;
+        else if (Array.isArray(res?.data)) list = res.data;
+        else if (Array.isArray(res?.departments)) list = res.departments;
+        else if (Array.isArray(res?.list)) list = res.list;
+        else if (res && typeof res === "object") {
+          // Cari properti apa saja yang berupa array di dalam objek response
+          const foundKey = Object.keys(res).find((k) => Array.isArray(res[k]));
+          list = foundKey ? res[foundKey] : [];
+        }
+        console.log("Parsed departments list:", list);
         setDepartments(list);
       })
+      .catch((err) => {
+        console.error("Gagal memuat data departments:", err);
+        setDepartments([]);
+      });
       .catch((err) => {
         console.error("Gagal memuat data departments:", err);
         setDepartments([]);
