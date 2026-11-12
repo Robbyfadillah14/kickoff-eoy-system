@@ -267,16 +267,19 @@ export default function ReportFormPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body) 
       });
-      const resData = await res.json();
-      const saved = resData?.data || resData?.report || resData;
       
-      if (saved?.id) {
-        setReportId(saved.id); 
-        setStatus(saved.status || "DRAFT");
+      const resData = await res.json();
+      
+      // Menggunakan res.ok sebagai penanda sukses utama agar tidak gagal jika format id root berbeda
+      if (res.ok) {
+        const saved = resData?.data || resData?.report || resData;
+        const generatedId = saved?.id || reportId || "saved";
+        
+        setReportId(generatedId); 
+        setStatus(saved?.status || "DRAFT");
         setLocked(false);
         
-        // Perbarui state attachments dari respons server
-        if (saved.attachments && Array.isArray(saved.attachments)) {
+        if (saved?.attachments && Array.isArray(saved.attachments)) {
           setAttachments(saved.attachments);
         }
 
@@ -286,9 +289,10 @@ export default function ReportFormPage() {
           window.location.href = `/dashboard?year=${year}`;
         }, 1000);
       } else {
-        setMsg(resData?.error || "Gagal menyimpan laporan");
+        setMsg(resData?.error || resData?.message || "Gagal menyimpan laporan");
       }
     } catch (err) {
+      console.error("Error submit:", err);
       setMsg("Gagal menyimpan laporan ke server.");
     }
   }
