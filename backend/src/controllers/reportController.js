@@ -9,17 +9,18 @@ async function list(req, res) {
     
     if (year) where.year = Number(year);
 
-    // Filter Plant yang fleksibel (abaikan jika "ALL", "semua", atau kosong)
-    if (plantId && plantId !== "ALL" && plantId !== "semua" && plantId !== "") {
+    // Filter Plant yang lebih fleksibel dan aman
+    if (plantId && plantId !== "ALL" && plantId !== "semua" && plantId !== "null" && plantId !== "undefined" && plantId !== "") {
       where.plantId = String(plantId);
-    } else if (req.user.role === "DEPARTMENT_CONTRIBUTOR" && (req.user.plantId || req.user.plant?.id)) {
-      where.plantId = String(req.user.plantId || req.user.plant.id);
+    } else if (req.user?.role && req.user.role !== "SUPER_ADMIN") {
+      const uPlant = req.user.plantId || req.user.plant?.id;
+      if (uPlant) where.plantId = String(uPlant);
     }
 
-    // Filter Department yang fleksibel (abaikan jika "ALL", "semua", atau kosong)
-    if (departmentId && departmentId !== "ALL" && departmentId !== "semua" && departmentId !== "") {
+    // Filter Department yang lebih fleksibel dan aman
+    if (departmentId && departmentId !== "ALL" && departmentId !== "semua" && departmentId !== "null" && departmentId !== "undefined" && departmentId !== "") {
       where.departmentId = String(departmentId);
-    } else if (req.user.role === "DEPARTMENT_CONTRIBUTOR") {
+    } else if (req.user?.role && req.user.role !== "SUPER_ADMIN") {
       const uDept = req.user.departmentId || req.user.departments?.[0]?.departmentId || req.user.department?.id;
       if (uDept) where.departmentId = String(uDept);
     }
