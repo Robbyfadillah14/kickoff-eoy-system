@@ -18,29 +18,46 @@ export async function apiFetch(path, options = {}) {
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  // Gabungkan API_URL secara aman
   const cleanPath = path.startsWith("/") ? path : `/${path}`;
-  const fullUrl = cleanPath; // Karena API_URL = "", langsung gunakan path relatif (misal: "/api/plants")
+  const fullUrl = cleanPath;
 
   const res = await fetch(fullUrl, { ...options, headers, credentials: "include" });
   
   const contentType = res.headers.get("content-type");
+  let resultData = null;
+
   if (contentType && contentType.includes("application/json")) {
-    const data = await res.json();
-    if (!res.ok) {
-      throw new Error(data.error || data.message || "Terjadi kesalahan pada server");
-    }
-    return data;
+    resultData = await res.json();
   } else {
     const textError = await res.text();
     try {
-      const jsonData = JSON.parse(textError);
-      if (!res.ok) throw new Error(jsonData.error || `Server Error (${res.status})`);
-      return jsonData;
+      resultData = JSON.parse(textError);
     } catch (e) {
-      throw new Error(`Server Error (${res.status}): ${textError.slice(0, 100)}`);
+      if (!res.ok) throw new Error(`Server Error (${res.status}): ${textError.slice(0, 100)}`);
+      resultData = textError;
     }
   }
+
+  if (!res.ok) {
+    const errorMsg = (typeof resultData === "object" && resultData !== null) 
+      ? (resultData.error || resultData.message || "Terjadi kesalahan pada server")
+      : "Terjadi kesalahan pada server";
+    throw new Error(errorMsg);
+  }
+
+  // AUTO-NORMALIZATION: Jika hasil fetch berupa objek yang punya properti array (seperti data, departments, list),
+  // otomatis ekstrak array-nya agar komponen pemanggil tidak pernah error / kosong!
+  if (resultData && typeof resultData === "object" && !Array.isArray(resultData)) {
+    if (Array.isArray(resultData.data)) return resultData.data;
+    if (Array.isArray(resultData.departments)) return resultData.departments;
+    if (Array.isArray(resultData.list)) return resultData.list;
+    
+    // Cari properti apa saja yang berupa array di dalam objek response
+    const foundArrayKey = Object.keys(resultData).find((k) => Array.isArray(resultData[k]));
+    if (foundArrayKey) return resultData[foundArrayKey];
+  }
+
+  return resultData;
 }
 
 export { API_URL };
