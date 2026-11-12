@@ -29,43 +29,36 @@ export default function DashboardPage() {
       setPlantId(u.plantId || u.plant?.id);
     }
 
-    // 1. Ambil data master plants
+    // 1. Ambil data master plants (Sama persis polanya seperti di login)
     apiFetch("/api/plants")
       .then((data) => {
-        let list = [];
-        if (Array.isArray(data)) list = data;
-        else if (data?.data && Array.isArray(data.data)) list = data.data;
-        else if (data?.plants && Array.isArray(data.plants)) list = data.plants;
-        else if (data && typeof data === "object") {
-          const foundKey = Object.keys(data).find((k) => Array.isArray(data[k]));
-          list = foundKey ? data[foundKey] : [];
-        }
-        setPlants(list);
+        const plantList = Array.isArray(data) ? data : (data?.data || data?.plants || []);
+        setPlants(plantList);
       })
       .catch((err) => {
         console.error("Gagal memuat data plants:", err);
         setPlants([]);
       });
+  }, []);
 
-    // 2. Ambil data master departments
-    apiFetch("/api/departments")
-      .then((res) => {
-        let list = [];
-        if (Array.isArray(res)) list = res;
-        else if (Array.isArray(res?.data)) list = res.data;
-        else if (Array.isArray(res?.departments)) list = res.departments;
-        else if (Array.isArray(res?.list)) list = res.list;
-        else if (res && typeof res === "object") {
-          const foundKey = Object.keys(res).find((k) => Array.isArray(res[k]));
-          list = foundKey ? res[foundKey] : [];
-        }
-        setDepartments(list);
+  // 2. Ambil data master departments (Mengikuti pola dinamis halaman login: /api/plants/{id}/departments)
+  useEffect(() => {
+    const targetPlant = plantId || (user?.role !== "SUPER_ADMIN" ? (user?.plantId || user?.plant?.id) : "");
+
+    const endpoint = targetPlant 
+      ? `/api/plants/${targetPlant}/departments` 
+      : "/api/departments";
+
+    apiFetch(endpoint)
+      .then((data) => {
+        const deptList = Array.isArray(data) ? data : (data?.data || data?.departments || data?.list || []);
+        setDepartments(deptList);
       })
       .catch((err) => {
         console.error("Gagal memuat data departments:", err);
         setDepartments([]);
       });
-  }, []);
+  }, [plantId, user]);
 
   const isSuperAdmin = user?.role === "SUPER_ADMIN";
   const userPlantId = user?.plantId || user?.plant?.id;
@@ -193,7 +186,10 @@ export default function DashboardPage() {
             <>
               <select
                 value={plantId}
-                onChange={(e) => setPlantId(e.target.value)}
+                onChange={(e) => {
+                  setPlantId(e.target.value);
+                  setDepartmentId(""); // Reset department saat plant berubah
+                }}
                 className="bg-slate-950/90 border border-slate-700/60 rounded-xl px-3 py-2 text-xs font-medium text-slate-200 focus:outline-none focus:border-cyan-500 flex-1"
               >
                 <option value="">Semua Plant (6 Cabang)</option>
