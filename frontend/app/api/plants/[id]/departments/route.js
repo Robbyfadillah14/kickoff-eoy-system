@@ -5,15 +5,10 @@ const globalForPrisma = global;
 const prisma = globalForPrisma.prisma || new PrismaClient();
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
 
-export async function GET(request) {
+export async function GET() {
   try {
-    const { searchParams } = new URL(request.url);
-    const includeInactive = searchParams.get("includeInactive");
-
-    const where = includeInactive === "true" ? {} : { isActive: true };
-
+    // Ambil semua data departemen langsung tanpa filter isActive
     const departments = await prisma.department.findMany({
-      where,
       orderBy: { name: "asc" },
     });
 
