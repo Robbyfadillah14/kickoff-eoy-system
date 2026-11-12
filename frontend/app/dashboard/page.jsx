@@ -25,11 +25,12 @@ export default function DashboardPage() {
     const u = JSON.parse(localStorage.getItem("user") || "null");
     setUser(u);
 
-    if (u && u.role !== "SUPER_ADMIN" && (u.plantId || u.plant?.id)) {
-      setPlantId(u.plantId || u.plant?.id);
+    const uPlantId = u?.plantId || u?.plant?.id || "";
+    if (u && u.role !== "SUPER_ADMIN" && uPlantId) {
+      setPlantId(uPlantId);
     }
 
-    // 1. Ambil data master plants (Sama persis polanya seperti di login)
+    // 1. Ambil data master plants
     apiFetch("/api/plants")
       .then((data) => {
         const plantList = Array.isArray(data) ? data : (data?.data || data?.plants || []);
@@ -41,9 +42,10 @@ export default function DashboardPage() {
       });
   }, []);
 
-  // 2. Ambil data master departments (Mengikuti pola dinamis halaman login: /api/plants/{id}/departments)
+  // 2. Ambil data master departments
   useEffect(() => {
-    const targetPlant = plantId || (user?.role !== "SUPER_ADMIN" ? (user?.plantId || user?.plant?.id) : "");
+    const uPlantId = user?.plantId || user?.plant?.id || "";
+    const targetPlant = plantId || (user?.role !== "SUPER_ADMIN" ? uPlantId : "");
 
     const endpoint = targetPlant 
       ? `/api/plants/${targetPlant}/departments` 
@@ -61,8 +63,10 @@ export default function DashboardPage() {
   }, [plantId, user]);
 
   const isSuperAdmin = user?.role === "SUPER_ADMIN";
-  const userPlantId = user?.plantId || user?.plant?.id;
-  const userDeptId = user?.departmentId || user?.department?.id || user?.departments?.[0]?.departmentId || user?.departments?.[0]?.id;
+  
+  // Ekstraksi ID dengan fallback yang sangat komprehensif
+  const userPlantId = user?.plantId || user?.plant?.id || "";
+  const userDeptId = user?.departmentId || user?.department?.id || user?.departments?.[0]?.departmentId || user?.departments?.[0] || "";
 
   const activePlantId = isSuperAdmin ? plantId : userPlantId;
   const activeDeptId = isSuperAdmin ? departmentId : userDeptId;
@@ -101,12 +105,11 @@ export default function DashboardPage() {
     return () => socket.off("report_updated", onUpdate);
   }, [year, plantId, departmentId, user, activePlantId, activeDeptId, isSuperAdmin, userPlantId, userDeptId]);
 
+  // Filter laporan yang aman dan fleksibel terhadap perbedaan tipe data string/UUID
   const filteredReports = reports.filter((r) => {
     if (isSuperAdmin) return true;
-    if (user?.role === "DEPARTMENT_CONTRIBUTOR") {
-      if (userPlantId && r.plantId !== userPlantId) return false;
-      if (userDeptId && r.departmentId !== userDeptId) return false;
-    }
+    if (userPlantId && String(r.plantId) !== String(userPlantId)) return false;
+    if (userDeptId && String(r.departmentId) !== String(userDeptId)) return false;
     return true;
   });
 
@@ -188,7 +191,7 @@ export default function DashboardPage() {
                 value={plantId}
                 onChange={(e) => {
                   setPlantId(e.target.value);
-                  setDepartmentId(""); // Reset department saat plant berubah
+                  setDepartmentId("");
                 }}
                 className="bg-slate-950/90 border border-slate-700/60 rounded-xl px-3 py-2 text-xs font-medium text-slate-200 focus:outline-none focus:border-cyan-500 flex-1"
               >
