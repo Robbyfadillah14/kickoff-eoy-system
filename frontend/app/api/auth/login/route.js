@@ -15,7 +15,7 @@ export async function POST(request) {
           id: "super-admin-id",
           name: "Super Administrator",
           email: email,
-          role: "SUPERADMIN",
+          role: "SUPER_ADMIN", // Disamakan persis dengan RoleName SUPER_ADMIN di schema.prisma
         },
       });
     }
