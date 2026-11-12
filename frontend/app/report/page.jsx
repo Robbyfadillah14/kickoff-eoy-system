@@ -148,10 +148,16 @@ export default function ReportFormPage() {
   }, []);
 
   const isSuperAdmin = user?.role === "SUPER_ADMIN";
-  const userDeptId = user?.departmentId || user?.departments?.[0]?.departmentId || user?.department?.id;
+  const userDeptId = user?.departmentId || user?.departments?.[0]?.departmentId || user?.department?.id || user?.departments?.[0];
   const activeDeptId = isSuperAdmin ? selectedDeptId : (userDeptId || selectedDeptId);
 
-  const currentDept = departments.find(d => d.id === activeDeptId) || {};
+  // PENCARIAN DEPARTEMEN YANG FLEKSIBEL & AMAN DARI MISMATCH ID
+  const currentDept = departments.find(d => 
+    String(d.id) === String(activeDeptId) || 
+    String(d.departmentId) === String(activeDeptId) ||
+    (user?.departmentName && d.name?.toLowerCase() === user.departmentName.toLowerCase())
+  ) || departments[0] || { name: user?.departmentName || "Divisi Operasional" };
+  
   const currentDeptName = (currentDept.name || "").toLowerCase();
   
   const isSalesDept = currentDeptName.includes("sales") || currentDeptName.includes("support");
