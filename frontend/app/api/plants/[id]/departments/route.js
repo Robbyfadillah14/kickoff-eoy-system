@@ -5,34 +5,21 @@ const globalForPrisma = global;
 const prisma = globalForPrisma.prisma || new PrismaClient();
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
 
-export async function GET(request, { params }) {
+export async function DELETE(request, { params }) {
   try {
     const resolvedParams = await params;
-    const plantId = resolvedParams.id;
+    const id = resolvedParams.id;
 
-    const { searchParams } = new URL(request.url);
-    const includeInactive = searchParams.get("includeInactive");
-
-    // Mengambil data melalui tabel relasi yang benar: plantDepartmentAccesses
-    const accesses = await prisma.plantDepartmentAccess.findMany({
-      where: {
-        plantId: plantId,
-        ...(includeInactive === "true" ? {} : { department: { isActive: true } })
-      },
-      include: {
-        department: true
-      },
-      orderBy: {
-        department: { name: "asc" }
-      }
+    await prisma.department.delete({
+      where: { id },
     });
 
-    // Ekstrak data departemen dari hasil relasi akses plant
-    const departments = accesses.map(item => item.department).filter(Boolean);
-
-    return NextResponse.json({ success: true, data: departments });
+    return NextResponse.json({ success: true, message: "Departemen berhasil dihapus" });
   } catch (error) {
-    console.error("Gagal mengambil data departemen:", error);
-    return NextResponse.json({ success: false, error: "Gagal memuat departemen" }, { status: 500 });
+    console.error("Error deleting department:", error);
+    return NextResponse.json(
+      { success: false, error: "Gagal menghapus departemen (mungkin sedang digunakan)" },
+      { status: 500 }
+    );
   }
 }
