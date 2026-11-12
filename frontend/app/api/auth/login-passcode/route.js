@@ -1,5 +1,11 @@
 import { NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
+
+// Inisialisasi Prisma Client secara aman agar tidak error di serverless/Vercel
+const globalForPrisma = global;
+const prisma = globalForPrisma.prisma || new PrismaClient();
+if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+
 export async function POST(request) {
   try {
     const body = await request.json();
