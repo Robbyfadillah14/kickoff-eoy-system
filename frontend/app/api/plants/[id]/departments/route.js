@@ -12,15 +12,23 @@ export async function GET(request, { params }) {
 
     const { searchParams } = new URL(request.url);
     const includeInactive = searchParams.get("includeInactive");
-    const whereClause = {
-      plantId: plantId,
-      ...(includeInactive === "true" ? {} : { isActive: true })
-    };
 
-    const departments = await prisma.department.findMany({
-      where: whereClause,
-      orderBy: { name: "asc" },
+    // Mengambil data melalui tabel relasi PlantDepartment yang menghubungkan Plant dan Department
+    const relations = await prisma.plantDepartment.findMany({
+      where: {
+        plantId: plantId,
+        ...(includeInactive === "true" ? {} : { department: { isActive: true } })
+      },
+      include: {
+        department: true
+      },
+      orderBy: {
+        department: { name: "asc" }
+      }
     });
+
+    // Ekstrak data departemennya saja dari hasil relasi
+    const departments = relations.map(item => item.department);
 
     return NextResponse.json({ success: true, data: departments });
   } catch (error) {
