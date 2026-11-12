@@ -47,27 +47,20 @@ export default function DashboardPage() {
         setPlants([]);
       });
 
-    // 2. Ambil data master departments (Di-handle multi-kondisi agar pasti masuk)
+    // 2. Ambil data master departments
     apiFetch("/api/departments")
       .then((res) => {
-        console.log("Raw departments response:", res);
         let list = [];
         if (Array.isArray(res)) list = res;
         else if (Array.isArray(res?.data)) list = res.data;
         else if (Array.isArray(res?.departments)) list = res.departments;
         else if (Array.isArray(res?.list)) list = res.list;
         else if (res && typeof res === "object") {
-          // Cari properti apa saja yang berupa array di dalam objek response
           const foundKey = Object.keys(res).find((k) => Array.isArray(res[k]));
           list = foundKey ? res[foundKey] : [];
         }
-        console.log("Parsed departments list:", list);
         setDepartments(list);
       })
-      .catch((err) => {
-        console.error("Gagal memuat data departments:", err);
-        setDepartments([]);
-      });
       .catch((err) => {
         console.error("Gagal memuat data departments:", err);
         setDepartments([]);
@@ -115,7 +108,6 @@ export default function DashboardPage() {
     return () => socket.off("report_updated", onUpdate);
   }, [year, plantId, departmentId, user, activePlantId, activeDeptId, isSuperAdmin, userPlantId, userDeptId]);
 
-  // FILTER SCRIPT UNTUK HAK AKSES SKOPE ROLE USER
   const filteredReports = reports.filter((r) => {
     if (isSuperAdmin) return true;
     if (user?.role === "DEPARTMENT_CONTRIBUTOR") {
@@ -125,7 +117,6 @@ export default function DashboardPage() {
     return true;
   });
 
-  // Helper Pemetaan Fase Run, Grow, Transform Berdasarkan Tahun
   const getStrategicPhase = (yr) => {
     if (yr === 2024) return { name: "RUN (Stabilitas & Fondasi)", color: "cyan", badgeBg: "bg-cyan-500/10 text-cyan-400 border-cyan-500/30" };
     if (yr === 2025) return { name: "GROW (Ekspansi & Pertumbuhan)", color: "amber", badgeBg: "bg-amber-500/10 text-amber-400 border-amber-500/30" };
@@ -178,7 +169,7 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-[#0d1117] text-slate-100 p-4 sm:p-6 lg:p-8 space-y-6 relative selection:bg-cyan-500 selection:text-black">
       
-      {/* HEADER SECTION MODERN & RESPONSIF */}
+      {/* HEADER SECTION */}
       <div className="flex flex-col gap-4 bg-gradient-to-r from-slate-900 via-slate-800/80 to-slate-900 border border-slate-800/80 p-4 sm:p-6 rounded-2xl shadow-xl backdrop-blur-md">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -196,7 +187,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* FILTER CONTROL / PLANT INFO */}
+        {/* FILTER CONTROL */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-2 border-t border-slate-800/80">
           {isSuperAdmin ? (
             <>
@@ -231,7 +222,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* BANNER SAMBUTAN & FASE STRATEGIS RUN, GROW, TRANSFORM */}
+      {/* BANNER SAMBUTAN */}
       <div className="bg-gradient-to-r from-purple-950/30 via-slate-900 to-slate-900 border border-purple-500/30 rounded-2xl p-4 sm:p-5 shadow-lg flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div className="space-y-1.5">
           <div className="flex items-center gap-2">
@@ -252,9 +243,8 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* ACTION BUTTONS BAR & PILIHAN TAHUN BERSANDINGAN */}
+      {/* ACTION BUTTONS */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-slate-900/60 border border-slate-800/80 p-3.5 rounded-2xl shadow-md">
-        
         <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2.5 flex-1">
           <a 
             href={`/report?year=${year}${activePlantId ? `&plantId=${activePlantId}` : ''}${activeDeptId ? `&departmentId=${activeDeptId}` : ''}`}
@@ -294,7 +284,7 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* DROPDOWN PILIHAN TAHUN BERSANDINGAN */}
+        {/* TAHUN */}
         <div className="flex items-center gap-2 bg-slate-950 border border-slate-700/80 px-3 py-2 rounded-xl shrink-0 shadow-inner">
           <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider font-mono">📅 Tahun:</span>
           <select
@@ -308,10 +298,9 @@ export default function DashboardPage() {
             <option value={2027} className="bg-slate-900 text-white">2027 (Future)</option>
           </select>
         </div>
-
       </div>
 
-      {/* REPORTS GRID CARDS DENGAN TEMA FASE */}
+      {/* REPORTS GRID CARDS */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
         {filteredReports.map((r) => {
           let performances = [];
@@ -366,7 +355,7 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              {/* TOMBOL AKSI CEPAT: EDIT & HAPUS */}
+              {/* TOMBOL AKSI CEPAT */}
               <div className="flex items-center gap-2 pt-3 border-t border-slate-800/80">
                 <a
                   href={`/report?id=${r.id}`}
@@ -408,7 +397,7 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {/* MODAL POPUP PENJELASAN SISTEM & POIN DATA */}
+      {/* MODAL DETAIL */}
       {selectedReportDetail && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-cyan-500/40 rounded-3xl p-5 sm:p-6 max-w-2xl w-full space-y-4 shadow-2xl animate-fadeIn relative">
@@ -485,7 +474,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* MODAL POPUP LIVE Q&A */}
+      {/* MODAL LIVE Q&A */}
       {isQaOpen && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 max-w-md w-full space-y-4 shadow-2xl animate-fadeIn relative">
