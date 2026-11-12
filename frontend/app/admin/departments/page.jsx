@@ -11,10 +11,8 @@ export default function AdminDepartmentsPage() {
   // Load daftar departemen
   const loadDepartments = async () => {
     try {
-      const res = await apiFetch("/api/departments");
-      if (!res.ok) throw new Error("Gagal mengambil data departemen");
-      const data = await res.json();
-      const list = Array.isArray(data) ? data : data?.data || data?.departments || [];
+      const data = await apiFetch("/api/departments");
+      const list = Array.isArray(data) ? data : (data?.data || data?.departments || data?.list || []);
       setDepartments(list);
     } catch (err) {
       console.error("Error loading departments:", err);
@@ -29,8 +27,6 @@ export default function AdminDepartmentsPage() {
   // Fungsi Tambah Departemen
   const handleAdd = async (e) => {
     e.preventDefault();
-    console.log("Tombol Tambah diklik. Input nama:", name);
-
     if (!name.trim()) {
       setMsg("Nama departemen tidak boleh kosong.");
       return;
@@ -40,7 +36,7 @@ export default function AdminDepartmentsPage() {
     setMsg("");
 
     try {
-      const res = await apiFetch("/api/departments", {
+      await apiFetch("/api/departments", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -48,20 +44,12 @@ export default function AdminDepartmentsPage() {
         body: JSON.stringify({ name: name.trim() }),
       });
 
-      console.log("Response status:", res.status);
-
-      if (res.ok) {
-        setName("");
-        setMsg("Departemen berhasil ditambahkan!");
-        await loadDepartments();
-      } else {
-        const errData = await res.json().catch(() => ({}));
-        console.error("Error response:", errData);
-        setMsg(errData.message || errData.error || `Gagal menambah (Status: ${res.status})`);
-      }
+      setName("");
+      setMsg("Departemen berhasil ditambahkan!");
+      await loadDepartments();
     } catch (err) {
       console.error("Network or script error:", err);
-      setMsg("Terjadi kesalahan koneksi ke server.");
+      setMsg(err.message || "Terjadi kesalahan koneksi ke server.");
     } finally {
       setLoading(false);
     }
@@ -71,46 +59,43 @@ export default function AdminDepartmentsPage() {
   const handleDelete = async (id) => {
     if (!confirm("Yakin ingin menghapus departemen ini?")) return;
     try {
-      const res = await apiFetch(`/api/departments/${id}`, {
+      await apiFetch(`/api/departments/${id}`, {
         method: "DELETE",
       });
-      if (res.ok) {
-        setMsg("Departemen berhasil dihapus.");
-        loadDepartments();
-      } else {
-        setMsg("Gagal menghapus departemen.");
-      }
+      setMsg("Departemen berhasil dihapus.");
+      loadDepartments();
     } catch (err) {
       console.error("Error deleting department:", err);
+      setMsg("Gagal menghapus departemen.");
     }
   };
 
   return (
-    <div className="min-h-screen bg-bg p-6 max-w-4xl mx-auto text-white">
+    <div className="min-h-screen bg-slate-950 p-6 max-w-4xl mx-auto text-white">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-xl font-bold">Kelola Departemen (Super Admin)</h1>
         <a 
           href="/admin/audit-logs" 
-          className="text-xs bg-bg2 border border-line px-3 py-1.5 rounded-lg hover:border-accent transition-colors"
+          className="text-xs bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-lg hover:border-cyan-500 transition-colors"
         >
           Lihat Audit Log
         </a>
       </div>
 
       {/* FORM TAMBAH DEPARTEMEN */}
-      <form onSubmit={handleAdd} className="bg-card border border-line p-4 rounded-xl mb-6 flex gap-3 items-center">
+      <form onSubmit={handleAdd} className="bg-slate-900 border border-slate-800 p-4 rounded-xl mb-6 flex gap-3 items-center shadow-lg">
         <input
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Nama departemen baru"
           disabled={loading}
-          className="flex-1 bg-bg2 border border-line rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-accent disabled:opacity-50"
+          className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-cyan-500 disabled:opacity-50"
         />
         <button
           type="submit"
           disabled={loading}
-          className="bg-accent text-bg px-5 py-2 rounded-lg text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer"
+          className="bg-cyan-500 text-slate-950 px-5 py-2 rounded-lg text-sm font-bold hover:bg-cyan-400 transition-opacity disabled:opacity-50 cursor-pointer shadow-md shadow-cyan-500/20"
         >
           {loading ? "Menyimpan..." : "Tambah"}
         </button>
@@ -124,19 +109,19 @@ export default function AdminDepartmentsPage() {
       )}
 
       {/* DAFTAR DEPARTEMEN */}
-      <div className="bg-card border border-line rounded-xl overflow-hidden">
-        <div className="divide-y divide-line">
+      <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-lg">
+        <div className="divide-y divide-slate-800">
           {departments.length === 0 ? (
-            <p className="p-4 text-xs text-sub text-center">Belum ada departemen tersimpan.</p>
+            <p className="p-6 text-xs text-slate-400 text-center">Belum ada departemen tersimpan.</p>
           ) : (
             departments.map((dept, index) => (
-              <div key={dept.id || index} className="p-3.5 flex justify-between items-center text-sm">
+              <div key={dept.id || index} className="p-3.5 flex justify-between items-center text-sm hover:bg-slate-800/40 transition">
                 <span className="font-medium text-white">{dept.name}</span>
                 <div className="flex gap-2">
                   <button
                     type="button"
                     onClick={() => handleDelete(dept.id)}
-                    className="text-xs bg-red-500/10 text-red-400 border border-red-500/20 px-2.5 py-1 rounded-md hover:bg-red-500/20 transition-colors"
+                    className="text-xs bg-red-500/10 text-red-400 border border-red-500/20 px-2.5 py-1 rounded-md hover:bg-red-500/20 transition-colors cursor-pointer"
                   >
                     Hapus
                   </button>
