@@ -91,11 +91,13 @@ export default function ReportFormPage() {
         let targetDeptId = urlDeptId;
         if (!targetDeptId && list.length > 0) {
           if (fallback?.role !== "SUPER_ADMIN") {
-            // Mapping akurat berdasarkan ID atau kecocokan Nama Departemen user yang login
-            const userDeptName = (fallback?.departmentName || fallback?.department?.name || fallback?.department || "").toLowerCase();
+            const userDeptName = (fallback?.departmentName || fallback?.department?.name || fallback?.department || fallback?.name || "").toLowerCase();
             const matchedDept = list.find(d => 
               String(d.id) === String(fallback?.departmentId || fallback?.department?.id) ||
-              (userDeptName && d.name?.toLowerCase().includes(userDeptName))
+              (userDeptName && d.name?.toLowerCase().includes(userDeptName)) ||
+              (userDeptName.includes("finance") && d.name?.toLowerCase().includes("finance")) ||
+              (userDeptName.includes("purchasing") && d.name?.toLowerCase().includes("purchasing")) ||
+              (userDeptName.includes("accounting") && d.name?.toLowerCase().includes("accounting"))
             );
             targetDeptId = matchedDept ? matchedDept.id : (fallback?.departmentId || fallback?.department?.id || list[0].id);
           } else {
@@ -157,20 +159,25 @@ export default function ReportFormPage() {
 
   const isSuperAdmin = user?.role === "SUPER_ADMIN";
   
-  // Deteksi ID Departemen user login dengan fallback komprehensif
   const userDeptId = user?.departmentId || user?.department?.id || user?.departments?.[0]?.departmentId || user?.departments?.[0] || "";
   const activeDeptId = isSuperAdmin ? selectedDeptId : (selectedDeptId || userDeptId);
 
-  // PENCARIAN DEPARTEMEN YANG SANGAT AKURAT
+  // PENCARIAN DEPARTEMEN DENGAN FORCE FALLBACK BERDASARKAN NAMA AKUN
+  const userNameLower = (user?.name || "").toLowerCase();
   const currentDept = departments.find(d => 
     String(d.id) === String(activeDeptId) || 
-    String(d.departmentId) === String(activeDeptId) ||
-    (user?.departmentName && d.name?.toLowerCase().includes(user.departmentName.toLowerCase())) ||
-    (user?.department?.name && d.name?.toLowerCase().includes(user.department.name.toLowerCase()))
-  ) || departments[0] || { name: user?.departmentName || user?.department?.name || "Divisi Operasional" };
+    String(d.id) === String(userDeptId) ||
+    (user?.departmentName && d.name?.toLowerCase().includes(user.departmentName.toLowerCase()))
+  ) || departments.find(d => {
+    if (userNameLower.includes("finance")) return d.name.toLowerCase().includes("finance");
+    if (userNameLower.includes("purchasing")) return d.name.toLowerCase().includes("purchasing");
+    if (userNameLower.includes("accounting") || userNameLower.includes("tax")) return d.name.toLowerCase().includes("accounting");
+    if (userNameLower.includes("hr") || userNameLower.includes("mr")) return d.name.toLowerCase().includes("hr");
+    if (userNameLower.includes("exim")) return d.name.toLowerCase().includes("exim");
+    return false;
+  }) || departments[0] || { name: user?.departmentName || user?.name || "Divisi Operasional" };
   
   const currentDeptName = (currentDept.name || "").toLowerCase();
-  
   const isSalesDept = currentDeptName.includes("sales") || currentDeptName.includes("support") || currentDeptName.includes("operasional");
 
   // MAPPING KOMPONEN FORM BERDASARKAN NAMA DEPARTEMEN (FLEKSIBEL) + ATTACHMENTS PROPS
@@ -218,7 +225,6 @@ export default function ReportFormPage() {
   async function handleSubmit(e) {
     e.preventDefault();
     const currentPlantId = user?.plantId || user?.plant?.id;
-    // Gunakan ID dari currentDept yang sudah ditemukan secara akurat, fallback ke activeDeptId
     const currentDeptId = currentDept?.id || activeDeptId || user?.departmentId || user?.department?.id;
 
     if (!user || !currentPlantId || !currentDeptId) {
