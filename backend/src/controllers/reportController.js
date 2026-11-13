@@ -9,20 +9,20 @@ async function list(req, res) {
     
     if (year) where.year = Number(year);
 
-    // Filter Plant yang lebih fleksibel dan aman
-    if (plantId && plantId !== "ALL" && plantId !== "semua" && plantId !== "null" && plantId !== "undefined" && plantId !== "") {
-      where.plantId = String(plantId);
-    } else if (req.user?.role && req.user.role !== "SUPER_ADMIN") {
-      const uPlant = req.user.plantId || req.user.plant?.id;
-      if (uPlant) where.plantId = String(uPlant);
+    const isSuperAdmin = req.user?.role === "SUPER_ADMIN";
+
+    // Filter Plant yang fleksibel
+    const targetPlantId = isSuperAdmin ? plantId : (req.user?.plantId || req.user?.plant?.id);
+    if (targetPlantId && targetPlantId !== "ALL" && targetPlantId !== "semua" && targetPlantId !== "null" && targetPlantId !== "undefined" && targetPlantId !== "") {
+      where.plantId = String(targetPlantId);
     }
 
-    // Filter Department yang lebih fleksibel dan aman
-    if (departmentId && departmentId !== "ALL" && departmentId !== "semua" && departmentId !== "null" && departmentId !== "undefined" && departmentId !== "") {
+    // Filter Department yang fleksibel: jika kontributor, paksa kunci ke departemen user yang login
+    const targetDeptId = isSuperAdmin ? departmentId : (req.user?.departmentId || req.user?.department?.id || req.user?.departments?.[0]?.departmentId || req.user?.departments?.[0]);
+    if (!isSuperAdmin && targetDeptId) {
+      where.departmentId = String(targetDeptId);
+    } else if (departmentId && departmentId !== "ALL" && departmentId !== "semua" && departmentId !== "null" && departmentId !== "undefined" && departmentId !== "") {
       where.departmentId = String(departmentId);
-    } else if (req.user?.role && req.user.role !== "SUPER_ADMIN") {
-      const uDept = req.user.departmentId || req.user.departments?.[0]?.departmentId || req.user.department?.id;
-      if (uDept) where.departmentId = String(uDept);
     }
 
     const reports = await prisma.report.findMany({
@@ -66,7 +66,11 @@ async function getById(req, res) {
 
 async function upsert(req, res) {
   try {
-    const { id, year, plantId, departmentId, achievementSummary, metricsJson, challenges, opportunities, rgtRun, rgtGrow, rgtTransform, deadlineAt } = req.body;
+    let { id, year, plantId, departmentId, achievementSummary, metricsJson, challenges, opportunities, rgtRun, rgtGrow, rgtTransform, deadlineAt } = req.body;
+
+    // Fallback otomatis ambil dari req.user jika payload body kurang lengkap
+    if (!plantId && req.user?.plantId) plantId = req.user.plantId;
+    if (!departmentId && req.user?.departmentId) departmentId = req.user.departmentId;
 
     if (!year || !plantId || !departmentId) {
       return res.status(400).json({ error: "year, plantId, dan departmentId wajib diisi!" });
@@ -82,8 +86,8 @@ async function upsert(req, res) {
 
     const data = { 
       year: yearNum,
-      plantId,
-      departmentId,
+      plantId: String(plantId),
+      departmentId: String(departmentId),
       achievementSummary, 
       metricsJson, 
       challenges, 
@@ -99,25 +103,12 @@ async function upsert(req, res) {
       // Mode edit record yang sudah pasti ada ID-nya
       report = await prisma.report.update({
         where: { id: String(id) },
-        data: {
-          year: yearNum,
-          plantId,
-          departmentId,
-          achievementSummary, 
-          metricsJson, 
-          challenges, 
-          opportunities, 
-          rgtRun, 
-          rgtGrow, 
-          rgtTransform, 
-          deadlineAt: parsedDeadline, 
-          status: "SUBMITTED"
-        },
+        data,
       });
     } else {
       // Mode create / upsert berdasarkan kombinasi unik year, plantId, departmentId
       report = await prisma.report.upsert({
-        where: { year_plantId_departmentId: { year: yearNum, plantId, departmentId } },
+        where: { year_plantId_departmentId: { year: yearNum, plantId: String(plantId), departmentId: String(departmentId) } },
         update: data,
         create: data,
       });
