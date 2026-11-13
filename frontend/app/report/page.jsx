@@ -90,9 +90,17 @@ export default function ReportFormPage() {
 
         let targetDeptId = urlDeptId;
         if (!targetDeptId && list.length > 0) {
-          targetDeptId = fallback?.role !== "SUPER_ADMIN" 
-            ? (fallback?.departmentId || fallback?.departments?.[0]?.departmentId || fallback?.department?.id)
-            : list[0].id;
+          if (fallback?.role !== "SUPER_ADMIN") {
+            // Mapping akurat berdasarkan ID atau kecocokan Nama Departemen user yang login
+            const userDeptName = (fallback?.departmentName || fallback?.department?.name || fallback?.department || "").toLowerCase();
+            const matchedDept = list.find(d => 
+              String(d.id) === String(fallback?.departmentId || fallback?.department?.id) ||
+              (userDeptName && d.name?.toLowerCase().includes(userDeptName))
+            );
+            targetDeptId = matchedDept ? matchedDept.id : (fallback?.departmentId || fallback?.department?.id || list[0].id);
+          } else {
+            targetDeptId = list[0].id;
+          }
         }
         setSelectedDeptId(targetDeptId);
 
@@ -148,15 +156,18 @@ export default function ReportFormPage() {
   }, []);
 
   const isSuperAdmin = user?.role === "SUPER_ADMIN";
-  const userDeptId = user?.departmentId || user?.departments?.[0]?.departmentId || user?.department?.id || user?.departments?.[0];
-  const activeDeptId = isSuperAdmin ? selectedDeptId : (userDeptId || selectedDeptId);
+  
+  // Deteksi ID Departemen user login dengan fallback komprehensif
+  const userDeptId = user?.departmentId || user?.department?.id || user?.departments?.[0]?.departmentId || user?.departments?.[0] || "";
+  const activeDeptId = isSuperAdmin ? selectedDeptId : (selectedDeptId || userDeptId);
 
-  // PENCARIAN DEPARTEMEN YANG FLEKSIBEL & AMAN DARI MISMATCH ID
+  // PENCARIAN DEPARTEMEN YANG SANGAT AKURAT
   const currentDept = departments.find(d => 
     String(d.id) === String(activeDeptId) || 
     String(d.departmentId) === String(activeDeptId) ||
-    (user?.departmentName && d.name?.toLowerCase() === user.departmentName.toLowerCase())
-  ) || departments[0] || { name: user?.departmentName || "Divisi Operasional" };
+    (user?.departmentName && d.name?.toLowerCase().includes(user.departmentName.toLowerCase())) ||
+    (user?.department?.name && d.name?.toLowerCase().includes(user.department.name.toLowerCase()))
+  ) || departments[0] || { name: user?.departmentName || user?.department?.name || "Divisi Operasional" };
   
   const currentDeptName = (currentDept.name || "").toLowerCase();
   
@@ -174,7 +185,7 @@ export default function ReportFormPage() {
       return <FinanceAPForm form={form} setForm={setForm} attachments={attachments} />;
     } else if (currentDeptName.includes("finance ar") || (currentDeptName.includes("finance") && currentDeptName.includes("ar"))) {
       return <FinanceARForm form={form} setForm={setForm} attachments={attachments} />;
-    } else if (currentDeptName.includes("finance department") || currentDeptName === "finance") {
+    } else if (currentDeptName.includes("finance department") || currentDeptName.includes("finance")) {
       return <FinanceDepartmentForm form={form} setForm={setForm} attachments={attachments} />;
     } else if (currentDeptName.includes("accounting") || currentDeptName.includes("tax")) {
       return <AccountingTaxForm form={form} setForm={setForm} attachments={attachments} />;
@@ -207,10 +218,11 @@ export default function ReportFormPage() {
   async function handleSubmit(e) {
     e.preventDefault();
     const currentPlantId = user?.plantId || user?.plant?.id;
-    const currentDeptId = activeDeptId || user?.departmentId || user?.department?.id;
+    // Gunakan ID dari currentDept yang sudah ditemukan secara akurat, fallback ke activeDeptId
+    const currentDeptId = currentDept?.id || activeDeptId || user?.departmentId || user?.department?.id;
 
-    if (!user || !currentPlantId) {
-      setMsg("Data user atau plantId tidak lengkap.");
+    if (!user || !currentPlantId || !currentDeptId) {
+      setMsg("Data user, plantId, atau departmentId tidak lengkap.");
       return;
     }
     setMsg("");
@@ -270,7 +282,6 @@ export default function ReportFormPage() {
       
       const resData = await res.json();
       
-      // Menggunakan res.ok sebagai penanda sukses utama agar tidak gagal jika format id root berbeda
       if (res.ok) {
         const saved = resData?.data || resData?.report || resData;
         const generatedId = saved?.id || reportId || "saved";
@@ -306,7 +317,7 @@ export default function ReportFormPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-xl font-bold">Form Laporan — {userPlantName}</h1>
-            <p className="text-xs text-slate-400 mt-0.5">PIC Akun: <span className="text-white font-medium">{user.name}</span></p>
+            <p className="text-xs text-slate-400 mt-0.5">PIC Akun: <span className="text-white font-medium">{user.name}</span> — Divisi: <span className="text-cyan-400 font-medium">{currentDept.name}</span></p>
           </div>
           <select 
             value={year} 
