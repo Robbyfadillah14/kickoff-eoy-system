@@ -78,7 +78,7 @@ async function loginPasscode(req, res) {
       return res.status(401).json({ error: "Kode Akses / PIN Divisi Salah untuk Plant ini!" });
     }
 
-    // Cari atau buat user sistem generik untuk plant & departemen ini agar token & audit log tetap valid
+    // Cari atau buat user sistem generik untuk plant & departemen ini
     let genericUser = await prisma.user.findFirst({
       where: { email: `${access.plant.code}.${access.department.name.toLowerCase().replace(/[^a-z0-9]/g, '')}@local.system` }
     });
@@ -86,12 +86,19 @@ async function loginPasscode(req, res) {
     if (!genericUser) {
       genericUser = await prisma.user.create({
         data: {
-          name: `${access.department.name} - ${access.plant.name}`,
+          name: `${access.department.name} ${access.plant.name}`,
           email: `${access.plant.code}.${access.department.name.toLowerCase().replace(/[^a-z0-9]/g, '')}@local.system`,
           passwordHash: 'SYSTEM_PASSCODE_USER',
           role: 'DEPARTMENT_CONTRIBUTOR',
           plantId: access.plantId,
+          departmentId: access.departmentId // <--- DIPERBAIKI: departmentId sekarang ikut tersimpan!
         }
+      });
+    } else if (!genericUser.departmentId) {
+      // Jika user sudah ada sebelumnya tapi departmentId-nya null, update otomatis
+      genericUser = await prisma.user.update({
+        where: { id: genericUser.id },
+        data: { departmentId: access.departmentId }
       });
     }
 
@@ -173,5 +180,4 @@ async function resetPassword(req, res) {
   res.json({ ok: true });
 }
 
-// EKSPOR SEMUA FUNGSI TERMASUK LOGIN PASSCODE
 module.exports = { login, loginPasscode, refresh, logout, requestPasswordReset, resetPassword };
