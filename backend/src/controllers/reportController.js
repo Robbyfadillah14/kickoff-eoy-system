@@ -7,21 +7,50 @@ async function list(req, res) {
     const { year, plantId, departmentId } = req.query;
     const where = {};
     
-    if (year) where.year = Number(year);
+    // 1. Filter tahun
+    if (year && year !== "ALL" && year !== "semua" && year !== "null" && year !== "undefined") {
+      where.year = Number(year);
+    }
 
     const isSuperAdmin = req.user?.role === "SUPER_ADMIN";
 
-    // 1. Filter Plant: Utamakan query parameter dari frontend, jika kosong fallback ke user session
-    const targetPlantId = plantId || (isSuperAdmin ? null : (req.user?.plantId || req.user?.plant?.id));
-    if (targetPlantId && targetPlantId !== "ALL" && targetPlantId !== "semua" && targetPlantId !== "null" && targetPlantId !== "undefined" && targetPlantId !== "") {
-      where.plantId = String(targetPlantId);
+    // 2. Smart Resolution Plant (Menangani mismatch antara Nama Plant vs UUID Database)
+    const rawPlantId = plantId || (isSuperAdmin ? null : (req.user?.plantId || req.user?.plant?.id || req.user?.plantName));
+    if (rawPlantId && rawPlantId !== "ALL" && rawPlantId !== "semua" && rawPlantId !== "null" && rawPlantId !== "undefined" && rawPlantId !== "") {
+      const plantMatch = await prisma.plant.findFirst({
+        where: {
+          OR: [
+            { id: String(rawPlantId) },
+            { name: { contains: String(rawPlantId), mode: "insensitive" } }
+          ]
+        }
+      });
+      if (plantMatch) {
+        where.plantId = plantMatch.id;
+      } else {
+        where.plantId = String(rawPlantId);
+      }
     }
 
-    // 2. Filter Department: Utamakan query parameter dari frontend, jika kosong fallback ke user session
-    const targetDeptId = departmentId || (isSuperAdmin ? null : (req.user?.departmentId || req.user?.department?.id || req.user?.departments?.[0]?.departmentId || req.user?.departments?.[0]));
-    if (targetDeptId && targetDeptId !== "ALL" && targetDeptId !== "semua" && targetDeptId !== "null" && targetDeptId !== "undefined" && targetDeptId !== "") {
-      where.departmentId = String(targetDeptId);
+    // 3. Smart Resolution Department (Menangani mismatch antara Nama Dept vs UUID Database)
+    const rawDeptId = departmentId || (isSuperAdmin ? null : (req.user?.departmentId || req.user?.department?.id || req.user?.departmentName));
+    if (rawDeptId && rawDeptId !== "ALL" && rawDeptId !== "semua" && rawDeptId !== "null" && rawDeptId !== "undefined" && rawDeptId !== "") {
+      const deptMatch = await prisma.department.findFirst({
+        where: {
+          OR: [
+            { id: String(rawDeptId) },
+            { name: { contains: String(rawDeptId), mode: "insensitive" } }
+          ]
+        }
+      });
+      if (deptMatch) {
+        where.departmentId = deptMatch.id;
+      } else {
+        where.departmentId = String(rawDeptId);
+      }
     }
+
+    console.log("=== FINAL REPORT QUERY WHERE ===", where);
 
     const reports = await prisma.report.findMany({
       where, 
@@ -29,7 +58,8 @@ async function list(req, res) {
       orderBy: [{ year: "desc" }],
     });
 
-    // Mengembalikan format respons ganda agar kompatibel dengan berbagai skema pembacaan di frontend dashboard
+    console.log(`=== DITEMUKAN ${reports.length} LAPORAN DI DATABASE ===`);
+
     return res.json({
       success: true,
       data: reports,
@@ -66,7 +96,6 @@ async function upsert(req, res) {
   try {
     let { id, year, plantId, departmentId, achievementSummary, metricsJson, challenges, opportunities, rgtRun, rgtGrow, rgtTransform, deadlineAt } = req.body;
 
-    // Fallback otomatis ambil dari req.user jika payload body kurang lengkap
     if (!plantId && req.user?.plantId) plantId = req.user.plantId;
     if (!departmentId && req.user?.departmentId) departmentId = req.user.departmentId;
 
@@ -78,8 +107,6 @@ async function upsert(req, res) {
     const parsedDeadline = deadlineAt ? new Date(deadlineAt) : null;
     
     let report;
-    
-    // Pastikan id benar-benar ada dan bukan string kosong/null/undefined
     const isValidId = id && id !== "null" && id !== "undefined" && String(id).trim() !== "";
 
     const data = { 
@@ -98,13 +125,11 @@ async function upsert(req, res) {
     };
 
     if (isValidId) {
-      // Mode edit record yang sudah pasti ada ID-nya
       report = await prisma.report.update({
         where: { id: String(id) },
         data,
       });
     } else {
-      // Mode create / upsert berdasarkan kombinasi unik year, plantId, departmentId
       report = await prisma.report.upsert({
         where: { year_plantId_departmentId: { year: yearNum, plantId: String(plantId), departmentId: String(departmentId) } },
         update: data,
@@ -119,7 +144,6 @@ async function upsert(req, res) {
       io.emit("report_updated", { reportId: report.id, year: yearNum, plantId, departmentId, status: report.status });
     }
 
-    // Ambil report lengkap beserta attachments-nya agar data file terkirim kembali ke frontend
     const completeReport = await prisma.report.findUnique({
       where: { id: report.id },
       include: { plant: true, department: true, attachments: true }
@@ -171,7 +195,6 @@ async function lockExpired(req, res) {
   }
 }
 
-// Fungsi Hapus Laporan Terpusat dengan Transaction Aman
 async function remove(req, res) {
   try {
     const { id } = req.params;
