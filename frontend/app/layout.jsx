@@ -120,9 +120,10 @@ export default function RootLayout({ children }) {
         {/* FOOTER RINGKAS (HANYA MUNCUL JIKA BUKAN HALAMAN LOGIN) */}
         {!isLoginPage && (
           <footer className="border-t border-line/60 py-4 text-center text-[11px] text-sub bg-card/30">
-            © {new Date().getFullYear()} PT Ekasurya Inout Indonesia — Kickoff & EOY System
+            © {new Date().getFullYear()} Developed with ❤️ by Robby Fadillah — Kickoff & EOY System
           </footer>
         )}
+    
       </body>
     </html>
   );
