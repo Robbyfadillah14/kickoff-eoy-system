@@ -11,18 +11,16 @@ async function list(req, res) {
 
     const isSuperAdmin = req.user?.role === "SUPER_ADMIN";
 
-    // Filter Plant yang fleksibel
-    const targetPlantId = isSuperAdmin ? plantId : (req.user?.plantId || req.user?.plant?.id);
+    // 1. Filter Plant: Utamakan query parameter dari frontend, jika kosong fallback ke user session
+    const targetPlantId = plantId || (isSuperAdmin ? null : (req.user?.plantId || req.user?.plant?.id));
     if (targetPlantId && targetPlantId !== "ALL" && targetPlantId !== "semua" && targetPlantId !== "null" && targetPlantId !== "undefined" && targetPlantId !== "") {
       where.plantId = String(targetPlantId);
     }
 
-    // Filter Department yang fleksibel: jika kontributor, paksa kunci ke departemen user yang login
-    const targetDeptId = isSuperAdmin ? departmentId : (req.user?.departmentId || req.user?.department?.id || req.user?.departments?.[0]?.departmentId || req.user?.departments?.[0]);
-    if (!isSuperAdmin && targetDeptId) {
+    // 2. Filter Department: Utamakan query parameter dari frontend, jika kosong fallback ke user session
+    const targetDeptId = departmentId || (isSuperAdmin ? null : (req.user?.departmentId || req.user?.department?.id || req.user?.departments?.[0]?.departmentId || req.user?.departments?.[0]));
+    if (targetDeptId && targetDeptId !== "ALL" && targetDeptId !== "semua" && targetDeptId !== "null" && targetDeptId !== "undefined" && targetDeptId !== "") {
       where.departmentId = String(targetDeptId);
-    } else if (departmentId && departmentId !== "ALL" && departmentId !== "semua" && departmentId !== "null" && departmentId !== "undefined" && departmentId !== "") {
-      where.departmentId = String(departmentId);
     }
 
     const reports = await prisma.report.findMany({
