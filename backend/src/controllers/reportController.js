@@ -7,50 +7,40 @@ async function list(req, res) {
     const { year, plantId, departmentId } = req.query;
     const where = {};
     
-    // 1. Filter tahun
+    // 1. Filter Tahun
     if (year && year !== "ALL" && year !== "semua" && year !== "null" && year !== "undefined") {
       where.year = Number(year);
     }
 
-    const isSuperAdmin = req.user?.role === "SUPER_ADMIN";
-
-    // 2. Smart Resolution Plant (Menangani mismatch antara Nama Plant vs UUID Database)
-    const rawPlantId = plantId || (isSuperAdmin ? null : (req.user?.plantId || req.user?.plant?.id || req.user?.plantName));
-    if (rawPlantId && rawPlantId !== "ALL" && rawPlantId !== "semua" && rawPlantId !== "null" && rawPlantId !== "undefined" && rawPlantId !== "") {
-      const plantMatch = await prisma.plant.findFirst({
+    // 2. Filter Plant (Mendukung UUID langsung maupun pencarian nama teks dari session PIC)
+    if (plantId && plantId !== "ALL" && plantId !== "semua" && plantId !== "null" && plantId !== "undefined" && plantId !== "") {
+      // Cek apakah plantId yang dikirim adalah UUID valid atau Nama Plant
+      const plantCheck = await prisma.plant.findFirst({
         where: {
           OR: [
-            { id: String(rawPlantId) },
-            { name: { contains: String(rawPlantId), mode: "insensitive" } }
+            { id: String(plantId) },
+            { name: { contains: String(plantId), mode: "insensitive" } },
+            { code: { contains: String(plantId), mode: "insensitive" } }
           ]
         }
       });
-      if (plantMatch) {
-        where.plantId = plantMatch.id;
-      } else {
-        where.plantId = String(rawPlantId);
-      }
+      where.plantId = plantCheck ? plantCheck.id : String(plantId);
     }
 
-    // 3. Smart Resolution Department (Menangani mismatch antara Nama Dept vs UUID Database)
-    const rawDeptId = departmentId || (isSuperAdmin ? null : (req.user?.departmentId || req.user?.department?.id || req.user?.departmentName));
-    if (rawDeptId && rawDeptId !== "ALL" && rawDeptId !== "semua" && rawDeptId !== "null" && rawDeptId !== "undefined" && rawDeptId !== "") {
-      const deptMatch = await prisma.department.findFirst({
+    // 3. Filter Department (Mendukung UUID langsung maupun pencarian nama teks)
+    if (departmentId && departmentId !== "ALL" && departmentId !== "semua" && departmentId !== "null" && departmentId !== "undefined" && departmentId !== "") {
+      const deptCheck = await prisma.department.findFirst({
         where: {
           OR: [
-            { id: String(rawDeptId) },
-            { name: { contains: String(rawDeptId), mode: "insensitive" } }
+            { id: String(departmentId) },
+            { name: { contains: String(departmentId), mode: "insensitive" } }
           ]
         }
       });
-      if (deptMatch) {
-        where.departmentId = deptMatch.id;
-      } else {
-        where.departmentId = String(rawDeptId);
-      }
+      where.departmentId = deptCheck ? deptCheck.id : String(departmentId);
     }
 
-    console.log("=== FINAL REPORT QUERY WHERE ===", where);
+    console.log("=== FINAL PRISMA QUERY WHERE ===", where);
 
     const reports = await prisma.report.findMany({
       where, 
@@ -58,7 +48,7 @@ async function list(req, res) {
       orderBy: [{ year: "desc" }],
     });
 
-    console.log(`=== DITEMUKAN ${reports.length} LAPORAN DI DATABASE ===`);
+    console.log(`=== BERHASIL TARIK ${reports.length} LAPORAN DARI NEON ===`);
 
     return res.json({
       success: true,
