@@ -7,7 +7,6 @@ if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
 
 const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-// Helper untuk mencocokkan ID atau Nama Plant/Department
 async function resolvePlantId(plantId) {
   if (!plantId || plantId === 'ALL' || plantId === 'semua' || plantId === 'null') return null;
   if (uuidRegex.test(plantId)) return plantId;
@@ -31,46 +30,33 @@ async function resolveDeptId(departmentId) {
   return match ? match.id : departmentId;
 }
 
-export async function GET(request, { params }) {
+export async function GET(request) {
   try {
     const url = new URL(request.url);
     const pathname = url.pathname;
     const searchParams = url.searchParams;
+    const segments = pathname.split('/').filter(Boolean); 
+    // Contoh segments: ['api', 'plants'] atau ['api', 'reports', 'id-123']
 
-    // 1. ENDPOINT: /api/plants (dan relasi departemennya)
-    if (pathname.includes('/api/plants')) {
-      // Cek apakah ada format /api/plants/[id]/departments
-      if (pathname.includes('/departments')) {
-        const parts = pathname.split('/');
-        const plantIndex = parts.indexOf('plants');
-        const plantIdParam = parts[plantIndex + 1];
-        const resolvedId = await resolvePlantId(plantIdParam);
-
-        const departments = await prisma.department.findMany({
-          orderBy: { name: 'asc' }
-        });
+    // 1. ENDPOINT: /api/plants
+    if (segments[1] === 'plants') {
+      if (segments.length >= 4 && segments[3] === 'departments') {
+        const departments = await prisma.department.findMany({ orderBy: { name: 'asc' } });
         return NextResponse.json(departments);
       }
-
       const plants = await prisma.plant.findMany({ orderBy: { name: 'asc' } });
       return NextResponse.json(plants);
     }
 
     // 2. ENDPOINT: /api/departments
-    if (pathname.includes('/api/departments')) {
+    if (segments[1] === 'departments') {
       const departments = await prisma.department.findMany({ orderBy: { name: 'asc' } });
       return NextResponse.json(departments);
     }
 
-    // 3. ENDPOINT: /api/reports/export (Handling Export Excel/PDF sederhana)
-    if (pathname.includes('/api/reports/export')) {
-      return NextResponse.json({ success: true, message: "Export berhasil diproses" });
-    }
-
-    // 4. ENDPOINT: /api/reports/:id (Detail Laporan Tunggal)
-    const reportMatch = pathname.match(\/api\/reports\/([^\/]+)$/);
-    if (reportMatch && reportMatch[1] !== 'reports') {
-      const reportId = reportMatch[1];
+    // 3. ENDPOINT: /api/reports/:id (Detail Laporan)
+    if (segments[1] === 'reports' && segments[2] && segments[2] !== 'export') {
+      const reportId = segments[2];
       const report = await prisma.report.findUnique({
         where: { id: reportId },
         include: { plant: true, department: true, attachments: true, comments: true }
@@ -79,8 +65,8 @@ export async function GET(request, { params }) {
       return NextResponse.json({ success: true, data: report });
     }
 
-    // 5. ENDPOINT: /api/reports (List & Filter)
-    if (pathname.includes('/api/reports')) {
+    // 4. ENDPOINT: /api/reports (List & Filter)
+    if (segments[1] === 'reports') {
       const year = searchParams.get('year');
       const plantIdQuery = searchParams.get('plantId');
       const deptIdQuery = searchParams.get('departmentId');
@@ -95,8 +81,6 @@ export async function GET(request, { params }) {
 
       const resolvedDept = await resolveDeptId(deptIdQuery);
       if (resolvedDept) where.departmentId = resolvedDept;
-
-      console.log('=== CATCH-ALL REPORT GET WHERE ===', where);
 
       const reports = await prisma.report.findMany({
         where,
@@ -124,9 +108,9 @@ export async function POST(request) {
     const body = await request.json();
     const url = new URL(request.url);
     const pathname = url.pathname;
+    const segments = pathname.split('/').filter(Boolean);
 
-    // ENDPOINT: /api/reports (Upsert / Create)
-    if (pathname.includes('/api/reports')) {
+    if (segments[1] === 'reports') {
       const { id, year, plantId, departmentId, achievementSummary, metricsJson, challenges, opportunities, rgtRun, rgtGrow, rgtTransform, deadlineAt } = body;
 
       const resolvedPlant = await resolvePlantId(plantId);
@@ -187,10 +171,6 @@ export async function POST(request) {
 export async function PUT(request) {
   try {
     const body = await request.json();
-    const url = new URL(request.url);
-    const pathname = url.pathname;
-
-    // Handle review status atau update lain jika diperlukan
     return NextResponse.json({ success: true, data: body });
   } catch (error) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
@@ -201,7 +181,7 @@ export async function DELETE(request) {
   try {
     const url = new URL(request.url);
     const pathname = url.pathname;
-    const segments = pathname.split('/');
+    const segments = pathname.split('/').filter(Boolean);
     const reportId = segments[segments.length - 1];
 
     if (reportId && reportId !== 'reports') {
