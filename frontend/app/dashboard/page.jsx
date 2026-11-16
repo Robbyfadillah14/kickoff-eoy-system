@@ -6,7 +6,17 @@ import { BrandLogo } from "../../components/Branding";
 
 export default function DashboardPage() {
   const [user, setUser] = useState(null);
-  const [year, setYear] = useState(2026);
+  
+  // Tangkap tahun dari URL secara langsung, fallback ke 2026
+  const [year, setYear] = useState(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const y = params.get("year");
+      return y ? Number(y) : 2026;
+    }
+    return 2026;
+  });
+
   const [plants, setPlants] = useState([]);
   const [plantId, setPlantId] = useState("");
   const [departments, setDepartments] = useState([]);
@@ -64,7 +74,6 @@ export default function DashboardPage() {
 
   const isSuperAdmin = user?.role === "SUPER_ADMIN";
   
-  // Ekstraksi ID dengan fallback yang sangat komprehensif
   const userPlantId = user?.plantId || user?.plant?.id || "";
   const userDeptId = user?.departmentId || user?.department?.id || user?.departments?.[0]?.departmentId || user?.departments?.[0] || "";
 
@@ -105,13 +114,8 @@ export default function DashboardPage() {
     return () => socket.off("report_updated", onUpdate);
   }, [year, plantId, departmentId, user, activePlantId, activeDeptId, isSuperAdmin, userPlantId, userDeptId]);
 
-  // Filter laporan yang aman dan fleksibel terhadap perbedaan tipe data string/UUID
-  const filteredReports = reports.filter((r) => {
-    if (isSuperAdmin) return true;
-    if (userPlantId && String(r.plantId) !== String(userPlantId)) return false;
-    if (userDeptId && String(r.departmentId) !== String(userDeptId)) return false;
-    return true;
-  });
+  // FIX: Langsung gunakan reports dari backend tanpa filter client-side yang destruktif
+  const filteredReports = reports;
 
   const getStrategicPhase = (yr) => {
     if (yr === 2024) return { name: "RUN (Stabilitas & Fondasi)", color: "cyan", badgeBg: "bg-cyan-500/10 text-cyan-400 border-cyan-500/30" };
@@ -288,7 +292,16 @@ export default function DashboardPage() {
           <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider font-mono">📅 Tahun:</span>
           <select
             value={year}
-            onChange={(e) => setYear(Number(e.target.value))}
+            onChange={(e) => {
+              const newYear = Number(e.target.value);
+              setYear(newYear);
+              // Update URL query secara dinamis agar parameter tahun ikut berubah
+              if (typeof window !== "undefined") {
+                const url = new URL(window.location.href);
+                url.searchParams.set("year", newYear);
+                window.history.pushState({}, "", url);
+              }
+            }}
             className="bg-transparent text-xs font-extrabold text-cyan-400 focus:outline-none cursor-pointer"
           >
             <option value={2024} className="bg-slate-900 text-white">2024 (Run)</option>
