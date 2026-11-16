@@ -45,18 +45,7 @@ export async function apiFetch(path, options = {}) {
     throw new Error(errorMsg);
   }
 
-  // AUTO-NORMALIZATION: Jika hasil fetch berupa objek yang punya properti array (seperti data, departments, list),
-  // otomatis ekstrak array-nya agar komponen pemanggil tidak pernah error / kosong!
-  if (resultData && typeof resultData === "object" && !Array.isArray(resultData)) {
-    if (Array.isArray(resultData.data)) return resultData.data;
-    if (Array.isArray(resultData.departments)) return resultData.departments;
-    if (Array.isArray(resultData.list)) return resultData.list;
-    
-    // Cari properti apa saja yang berupa array di dalam objek response
-    const foundArrayKey = Object.keys(resultData).find((k) => Array.isArray(resultData[k]));
-    if (foundArrayKey) return resultData[foundArrayKey];
-  }
-
+  // Kembalikan data mentah apa adanya agar struktur objek respons backend terjaga utuh
   return resultData;
 }
 
