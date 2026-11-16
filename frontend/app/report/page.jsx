@@ -233,9 +233,10 @@ export default function ReportFormPage() {
     }
     setMsg("");
     
+    // Cari teks apa pun yang diisi user di form (fleksibel untuk semua jenis departemen)
     const foundText = 
-      form.executiveSummary ||
       form.achievementSummary ||
+      form.executiveSummary ||
       form.branchInnovations ||
       form.logisticEvaluation ||
       form.hrEvaluation ||
@@ -250,9 +251,9 @@ export default function ReportFormPage() {
       form.adminTfEvaluation ||
       form.taxEvaluation ||
       form.generalNotes ||
-      Object.entries(form).find(([k, v]) => typeof v === "string" && v.trim().length > 15 && k !== "salesType")?.[1];
+      Object.values(form).find(val => typeof val === "string" && val.trim().length > 5);
 
-    const autoSummary = foundText || `Laporan operasional dan performa ${currentDept.name || "Divisi"} tahun ${year} telah diperbarui.`;
+    const autoSummary = foundText || `Laporan operasional dan performa ${currentDept.name || "Divisi"} tahun ${year} telah disinkronkan.`;
 
     const body = {
       id: reportId, 
@@ -260,7 +261,7 @@ export default function ReportFormPage() {
       plantId: String(currentPlantId), 
       departmentId: String(currentDeptId),
       salesType: isSalesDept ? form.salesType : "OMZET",
-      achievementSummary: autoSummary, 
+      achievementSummary: String(autoSummary), 
       
       salesPerformances: form.salesPerformances || [],
 
