@@ -14,23 +14,15 @@ import ProductDevelopmentDeck from "../../components/presentation/ProductDevelop
 
 export default function DashboardPage() {
   const [user, setUser] = useState(null);
-  
-  // Tangkap tahun dari URL secara langsung, fallback ke 2026
-  const [year, setYear] = useState(() => {
-    if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      const y = params.get("year");
-      return y ? Number(y) : 2026;
-    }
-    return 2026;
-  });
-
   const [plants, setPlants] = useState([]);
   const [plantId, setPlantId] = useState("");
   const [departments, setDepartments] = useState([]);
   const [departmentId, setDepartmentId] = useState("");
-  const [reports, setReports] = useState([]);
+  
+  // Menyimpan laporan yang sudah dikonsolidasikan per Plant & Departemen (2024-2027)
+  const [consolidatedReports, setConsolidatedReports] = useState([]);
   const [allYearlyReports, setAllYearlyReports] = useState({});
+  const [totalActiveDocs, setTotalActiveDocs] = useState(0);
 
   // State untuk Modal Live Q&A
   const [isQaOpen, setIsQaOpen] = useState(false);
@@ -59,22 +51,6 @@ export default function DashboardPage() {
         console.error("Gagal memuat data plants:", err);
         setPlants([]);
       });
-
-    // Ambil rekapitulasi lintas tahun (2024-2027) untuk fitur multi-year di deck
-    const years = [2024, 2025, 2026, 2027];
-    Promise.all(
-      years.map((yr) =>
-        apiFetch(`/api/reports?year=${yr}`)
-          .then((res) => ({ yr, data: Array.isArray(res) ? res : res?.data || res?.reports || [] }))
-          .catch(() => ({ yr, data: [] }))
-      )
-    ).then((results) => {
-      const yearlyMap = {};
-      results.forEach(({ yr, data }) => {
-        yearlyMap[yr] = data;
-      });
-      setAllYearlyReports(yearlyMap);
-    });
   }, []);
 
   // 2. Ambil data master departments
@@ -105,53 +81,98 @@ export default function DashboardPage() {
   const activePlantId = isSuperAdmin ? plantId : userPlantId;
   const activeDeptId = isSuperAdmin ? departmentId : userDeptId;
 
-  // 3. Load Reports & Live Socket Update
+  // 3. Load & Gabungkan Reports Lintas Tahun (2024 - 2027) + Live Socket Update
   useEffect(() => {
     if (!user) return;
 
     const targetPlantId = isSuperAdmin ? plantId : userPlantId;
     const targetDeptId = isSuperAdmin ? departmentId : userDeptId;
 
-    const qs = new URLSearchParams({
-      year: Number(year),
-      ...(targetPlantId ? { plantId: String(targetPlantId) } : {}),
-      ...(targetDeptId ? { departmentId: String(targetDeptId) } : {}),
-    });
+    const years = [2024, 2025, 2026, 2027];
 
-    const fetchReports = () => {
-      apiFetch(`/api/reports?${qs.toString()}`)
-        .then((data) => {
-          const list = Array.isArray(data) ? data : data?.data || data?.reports || [];
-          setReports(list);
+    const fetchMultiYearReports = () => {
+      Promise.all(
+        years.map((yr) => {
+          const qs = new URLSearchParams({
+            year: yr,
+            ...(targetPlantId ? { plantId: String(targetPlantId) } : {}),
+            ...(targetDeptId ? { departmentId: String(targetDeptId) } : {}),
+          });
+          return apiFetch(`/api/reports?${qs.toString()}`)
+            .then((res) => ({
+              yr,
+              data: Array.isArray(res) ? res : res?.data || res?.reports || [],
+            }))
+            .catch(() => ({ yr, data: [] }));
         })
-        .catch((err) => {
-          console.error("Gagal memuat data reports:", err);
-          setReports([]);
+      ).then((results) => {
+        const yearlyMap = {};
+        let docCounter = 0;
+        const groupedMap = new Map();
+
+        results.forEach(({ yr, data }) => {
+          yearlyMap[yr] = data;
+          docCounter += data.length;
+
+          data.forEach((rep) => {
+            const pId = rep.plantId || rep.plant?.id || "unknown-plant";
+            const dId = rep.departmentId || rep.department?.id || "unknown-dept";
+            const groupKey = `${pId}_${dId}`;
+
+            let perfList = [];
+            try {
+              const rawPerf = rep.salesPerformances || rep.metricsJson?.salesPerformances || [];
+              perfList = typeof rawPerf === "string" ? JSON.parse(rawPerf) : rawPerf;
+            } catch (e) {
+              perfList = [];
+            }
+            const taggedPerf = perfList.map((item) => ({ ...item, _reportYear: yr }));
+
+            if (!groupedMap.has(groupKey)) {
+              groupedMap.set(groupKey, {
+                ...rep,
+                availableYears: [yr],
+                combinedPerformances: taggedPerf,
+                yearlyRecords: { [yr]: rep },
+              });
+            } else {
+              const existing = groupedMap.get(groupKey);
+              if (!existing.availableYears.includes(yr)) {
+                existing.availableYears.push(yr);
+              }
+              existing.combinedPerformances.push(...taggedPerf);
+              existing.yearlyRecords[yr] = rep;
+
+              // Prioritaskan metadata dokumen terbaru sebagai representasi utama kartu
+              if (yr >= existing.year) {
+                groupedMap.set(groupKey, {
+                  ...rep,
+                  availableYears: existing.availableYears,
+                  combinedPerformances: existing.combinedPerformances,
+                  yearlyRecords: existing.yearlyRecords,
+                });
+              }
+            }
+          });
         });
+
+        setAllYearlyReports(yearlyMap);
+        setTotalActiveDocs(docCounter);
+        setConsolidatedReports(Array.from(groupedMap.values()));
+      });
     };
 
-    fetchReports();
+    fetchMultiYearReports();
 
     const socket = getSocket();
-    const onUpdate = () => fetchReports();
+    const onUpdate = () => fetchMultiYearReports();
     socket.on("report_updated", onUpdate);
 
     return () => socket.off("report_updated", onUpdate);
-  }, [year, plantId, departmentId, user, activePlantId, activeDeptId, isSuperAdmin, userPlantId, userDeptId]);
-
-  const filteredReports = reports;
-
-  const getStrategicPhase = (yr) => {
-    if (yr === 2024) return { name: "RUN (Stabilitas & Fondasi)", color: "cyan", badgeBg: "bg-cyan-500/10 text-cyan-400 border-cyan-500/30" };
-    if (yr === 2025) return { name: "GROW (Ekspansi & Pertumbuhan)", color: "amber", badgeBg: "bg-amber-500/10 text-amber-400 border-amber-500/30" };
-    return { name: "TRANSFORM (Digitalisasi & Masa Depan)", color: "purple", badgeBg: "bg-purple-500/10 text-purple-400 border-purple-500/30" };
-  };
-
-  const currentPhase = getStrategicPhase(year);
+  }, [plantId, departmentId, user, activePlantId, activeDeptId, isSuperAdmin, userPlantId, userDeptId]);
 
   async function downloadExport(format) {
     const qs = new URLSearchParams({
-      year: Number(year),
       ...(activePlantId ? { plantId: String(activePlantId) } : {}),
       ...(activeDeptId ? { departmentId: String(activeDeptId) } : {}),
       format,
@@ -224,7 +245,7 @@ export default function DashboardPage() {
             </div>
             <div>
               <h1 className="text-base sm:text-lg font-bold tracking-tight text-white flex items-center gap-2">
-                Dashboard Reporting <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 font-medium">Enterprise</span>
+                Dashboard Reporting <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 font-medium">Enterprise Multi-Year</span>
               </h1>
               <p className="text-[11px] sm:text-xs text-slate-400 mt-0.5">
                 Login: <span className="text-cyan-400 font-semibold">{user.name}</span> <span className="text-slate-500">({user.role})</span>
@@ -271,23 +292,22 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* BANNER SAMBUTAN */}
+      {/* BANNER SAMBUTAN INTEGRASI 2024 - 2027 */}
       <div className="bg-gradient-to-r from-purple-950/30 via-slate-900 to-slate-900 border border-purple-500/30 rounded-2xl p-4 sm:p-5 shadow-lg flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div className="space-y-1.5">
-          <div className="flex items-center gap-2">
-            <span className={`text-[10px] font-mono px-2.5 py-0.5 rounded-full border font-bold uppercase tracking-wider ${currentPhase.badgeBg}`}>
-              🚀 Fokus Strategis: {currentPhase.name}
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[10px] font-mono px-2.5 py-0.5 rounded-full border font-bold uppercase tracking-wider bg-cyan-500/10 text-cyan-400 border-cyan-500/30">
+              🚀 Konsolidasi Strategis: 2024 – 2027 (Run · Grow · Transform · Future)
             </span>
-            <span className="text-xs text-slate-400 font-mono">Tahun Aktif: {year}</span>
           </div>
-          <p className="text-xs text-slate-300 leading-relaxed max-w-2xl">
-            Halo, <b className="text-white">{user.name}</b>! Sistem berjalan dengan kerangka kerja <b>Run, Grow, & Transform</b>. Tahun <span className="text-cyan-400 font-bold">{year}</span> memetakan fokus operasional dari stabilitas harian hingga automasi masa depan.
+          <p className="text-xs text-slate-300 leading-relaxed max-w-3xl">
+            Halo, <b className="text-white">{user.name}</b>! Seluruh rekapitulasi kinerja dari tahun <span className="text-cyan-400 font-bold">2024 hingga 2027</span> telah digabungkan secara otomatis ke dalam satu tampilan terpadu per departemen. Pilih tahun spesifik hanya saat melakukan pengisian atau pengeditan data laporan.
           </p>
         </div>
         <div className="flex items-center gap-3 bg-slate-950/60 border border-slate-800 px-4 py-3 rounded-xl shrink-0">
           <div className="text-center">
-            <span className="text-[10px] text-slate-400 block uppercase tracking-wider font-mono">Total Laporan Aktif</span>
-            <span className="text-base font-extrabold text-cyan-400 font-mono">{filteredReports.length} Dokumen</span>
+            <span className="text-[10px] text-slate-400 block uppercase tracking-wider font-mono">Total Dokumen (24-27)</span>
+            <span className="text-base font-extrabold text-cyan-400 font-mono">{totalActiveDocs} Dokumen</span>
           </div>
         </div>
       </div>
@@ -296,7 +316,7 @@ export default function DashboardPage() {
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-slate-900/60 border border-slate-800/80 p-3.5 rounded-2xl shadow-md">
         <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2.5 flex-1">
           <a 
-            href={`/report?year=${year}${activePlantId ? `&plantId=${activePlantId}` : ''}${activeDeptId ? `&departmentId=${activeDeptId}` : ''}`}
+            href={`/report?year=2026${activePlantId ? `&plantId=${activePlantId}` : ''}${activeDeptId ? `&departmentId=${activeDeptId}` : ''}`}
             className="col-span-2 sm:col-span-auto text-xs bg-gradient-to-r from-cyan-500 to-blue-600 text-slate-950 font-bold px-4 py-3 sm:py-2.5 rounded-xl hover:opacity-90 shadow-lg shadow-cyan-500/20 transition flex items-center justify-center gap-2"
           >
             <span>✍️</span> Form & Kontrol Laporan
@@ -332,85 +352,59 @@ export default function DashboardPage() {
             </a>
           )}
         </div>
-
-        {/* TAHUN */}
-        <div className="flex items-center gap-2 bg-slate-950 border border-slate-700/80 px-3 py-2 rounded-xl shrink-0 shadow-inner">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider font-mono">📅 Tahun:</span>
-          <select
-            value={year}
-            onChange={(e) => {
-              const newYear = Number(e.target.value);
-              setYear(newYear);
-              if (typeof window !== "undefined") {
-                const url = new URL(window.location.href);
-                url.searchParams.set("year", newYear);
-                window.history.pushState({}, "", url);
-              }
-            }}
-            className="bg-transparent text-xs font-extrabold text-cyan-400 focus:outline-none cursor-pointer"
-          >
-            <option value={2024} className="bg-slate-900 text-white">2024 (Run)</option>
-            <option value={2025} className="bg-slate-900 text-white">2025 (Grow)</option>
-            <option value={2026} className="bg-slate-900 text-white">2026 (Transform)</option>
-            <option value={2027} className="bg-slate-900 text-white">2027 (Future)</option>
-          </select>
-        </div>
       </div>
 
-      {/* REPORTS GRID CARDS DENGAN DECK PRESENTASI */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {filteredReports.map((r) => {
-          let performances = [];
-          try {
-            const rawPerf = r.salesPerformances || r.metricsJson?.salesPerformances || [];
-            performances = typeof rawPerf === "string" ? JSON.parse(rawPerf) : rawPerf;
-          } catch (e) {
-            performances = [];
-          }
+      {/* REPORTS FULL-WIDTH DECKS (GABUNGAN 2024 - 2027) */}
+      <div className="grid grid-cols-1 gap-6">
+        {consolidatedReports.map((r) => {
+          const performances = r.combinedPerformances || [];
+          const sortedYears = [...(r.availableYears || [])].sort((a, b) => a - b);
 
           return (
             <div 
-              key={r.id} 
-              className="group bg-slate-900/90 border border-slate-800/80 hover:border-cyan-500/50 rounded-3xl p-5 space-y-4 flex flex-col justify-between relative transition-all duration-300 shadow-2xl overflow-hidden"
+              key={`${r.plantId || r.plant?.id}_${r.departmentId || r.department?.id}`} 
+              className="group bg-slate-900/90 border border-slate-800/80 hover:border-cyan-500/50 rounded-3xl p-5 sm:p-6 space-y-4 flex flex-col justify-between relative transition-all duration-300 shadow-2xl overflow-hidden"
             >
-              <div className="space-y-3">
-                <div className="flex justify-between items-center gap-2">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-cyan-400 bg-cyan-950/50 border border-cyan-900/60 px-3 py-1 rounded-xl truncate">
+              <div className="space-y-4">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-cyan-400 bg-cyan-950/50 border border-cyan-900/60 px-3.5 py-1.5 rounded-xl">
                     🏢 {r.plant?.name} · {r.department?.name}
                   </span>
-                  <span className="text-xs font-bold text-purple-400 bg-purple-950/60 border border-purple-500/20 px-3 py-1 rounded-xl shrink-0 font-mono">
-                    📅 Tahun {r.year} ({r.year === 2024 ? "Run" : r.year === 2025 ? "Grow" : "Transform"})
-                  </span>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-xs font-bold text-purple-300 bg-purple-950/60 border border-purple-500/30 px-3 py-1.5 rounded-xl font-mono">
+                      📅 Terintegrasi: {sortedYears.join(" · ")}
+                    </span>
+                  </div>
                 </div>
 
-                {/* RENDER DECK PRESENTASI INTERAKTIF DI DALAM KARTU */}
-                <div className="w-full relative shadow-xl rounded-2xl overflow-hidden border border-slate-800 my-2">
+                {/* RENDER DECK PRESENTASI INTERAKTIF FULL-WIDTH */}
+                <div className="w-full relative shadow-xl rounded-2xl overflow-hidden border border-slate-800">
                   {renderDepartmentDeck(r)}
                 </div>
 
-                <div className="bg-slate-950/80 border border-slate-800/80 rounded-xl p-3 space-y-2 text-xs font-mono">
-                  <div className="flex items-center justify-between text-[10px] text-slate-400 border-b border-slate-900 pb-1.5">
-                    <span className="text-emerald-400 font-bold uppercase tracking-wider">⚡ Status Sistem:</span>
-                    <span className="text-cyan-400 font-bold">{performances.length} Item Data Siap</span>
+                <div className="bg-slate-950/80 border border-slate-800/80 rounded-xl p-3.5 space-y-2.5 text-xs font-mono">
+                  <div className="flex items-center justify-between text-[11px] text-slate-400 border-b border-slate-900 pb-2">
+                    <span className="text-emerald-400 font-bold uppercase tracking-wider">⚡ Status Konsolidasi Lintas Tahun:</span>
+                    <span className="text-cyan-400 font-bold">{performances.length} Total Poin Data (2024–2027)</span>
                   </div>
 
                   <button 
                     type="button"
                     onClick={() => setSelectedReportDetail(r)}
-                    className="w-full py-2 bg-gradient-to-r from-cyan-500/20 to-blue-500/20 hover:from-cyan-500/30 hover:to-blue-500/30 border border-cyan-500/40 text-cyan-300 font-sans font-bold text-xs rounded-xl transition flex items-center justify-center gap-2 cursor-pointer shadow-sm"
+                    className="w-full py-2.5 bg-gradient-to-r from-cyan-500/20 to-blue-500/20 hover:from-cyan-500/30 hover:to-blue-500/30 border border-cyan-500/40 text-cyan-300 font-sans font-bold text-xs rounded-xl transition flex items-center justify-center gap-2 cursor-pointer shadow-sm"
                   >
-                    <span>🤖</span> Cek Poin & Penjelasan Sistem ({performances.length} Poin)
+                    <span>🤖</span> Cek Rincian Poin Lintas Tahun ({performances.length} Poin)
                   </button>
                 </div>
               </div>
 
               {/* TOMBOL AKSI CEPAT (EDIT & HAPUS) */}
-              <div className="flex items-center gap-2 pt-3 border-t border-slate-800/80">
+              <div className="flex items-center gap-3 pt-3 border-t border-slate-800/80">
                 <a 
                   href={`/report?id=${r.id}`}
-                  className="flex-1 text-center py-2 bg-slate-800/80 hover:bg-cyan-500 hover:text-slate-950 text-slate-200 text-xs font-semibold rounded-xl transition shadow-sm flex items-center justify-center gap-1.5"
+                  className="flex-1 text-center py-2.5 bg-slate-800/80 hover:bg-cyan-500 hover:text-slate-950 text-slate-200 text-xs font-semibold rounded-xl transition shadow-sm flex items-center justify-center gap-1.5"
                 >
-                  <span>✏️</span> Edit Data
+                  <span>✏️</span> Edit Data Laporan
                 </a>
                 <button 
                   type="button"
@@ -418,7 +412,7 @@ export default function DashboardPage() {
                     e.preventDefault();
                     e.stopPropagation();
                     
-                    const confirmed = window.confirm(`Yakin ingin menghapus laporan ID: ${r.id} secara permanen?`);
+                    const confirmed = window.confirm(`Yakin ingin menghapus laporan aktif (${r.department?.name} - Tahun ${r.year}) secara permanen?`);
                     if (!confirmed) return;
 
                     try {
@@ -430,7 +424,7 @@ export default function DashboardPage() {
                       alert("Gagal menghapus laporan: " + error.message);
                     }
                   }}
-                  className="px-4 py-2 bg-red-500/10 hover:bg-red-600 text-red-400 hover:text-white text-xs font-bold rounded-xl transition text-center border border-red-500/20 shadow-sm cursor-pointer flex items-center justify-center gap-1 relative z-20"
+                  className="px-5 py-2.5 bg-red-500/10 hover:bg-red-600 text-red-400 hover:text-white text-xs font-bold rounded-xl transition text-center border border-red-500/20 shadow-sm cursor-pointer flex items-center justify-center gap-1 relative z-20"
                 >
                   <span>🗑️</span> Hapus
                 </button>
@@ -439,14 +433,14 @@ export default function DashboardPage() {
           );
         })}
 
-        {filteredReports.length === 0 && (
+        {consolidatedReports.length === 0 && (
           <div className="col-span-full py-12 text-center bg-slate-900/40 border border-dashed border-slate-800 rounded-2xl">
-            <p className="text-slate-400 text-sm">Belum ada data laporan yang masuk untuk filter atau tahun ini.</p>
+            <p className="text-slate-400 text-sm">Belum ada data laporan yang masuk untuk cabang atau divisi ini.</p>
           </div>
         )}
       </div>
 
-      {/* MODAL DETAIL */}
+      {/* MODAL DETAIL LINTAS TAHUN */}
       {selectedReportDetail && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-cyan-500/40 rounded-3xl p-5 sm:p-6 max-w-2xl w-full space-y-4 shadow-2xl animate-fadeIn relative">
@@ -454,7 +448,7 @@ export default function DashboardPage() {
               <div className="flex items-center gap-2">
                 <span className="text-xl">🤖</span>
                 <div>
-                  <h3 className="font-bold text-sm text-cyan-400">Analisis & Penjelasan Poin Sistem Otonom</h3>
+                  <h3 className="font-bold text-sm text-cyan-400">Analisis & Rincian Poin Multi-Year (2024–2027)</h3>
                   <p className="text-[11px] text-slate-400">Plant: {selectedReportDetail.plant?.name} · Divisi: {selectedReportDetail.department?.name}</p>
                 </div>
               </div>
@@ -467,9 +461,9 @@ export default function DashboardPage() {
             </div>
 
             <div className="bg-cyan-950/30 border border-cyan-500/30 rounded-xl p-4 space-y-2 text-xs text-slate-300 leading-relaxed">
-              <p className="font-bold text-cyan-300">✨ Catatan & Verifikasi Sistem Otonom:</p>
+              <p className="font-bold text-cyan-300">✨ Catatan & Verifikasi Konsolidasi Sistem Otonom:</p>
               <p>
-                "Seluruh rincian data operasional dan poin kinerja dari divisi ini telah divalidasi di bawah pilar strategis tahun {selectedReportDetail.year}, dienkripsi, serta disinkronkan ke dalam server pusat untuk presentasi eksekutif."
+                "Seluruh rincian data operasional dan poin kinerja lintas tahun (2024–2027) dari divisi ini telah digabungkan, divalidasi, serta disinkronkan ke dalam server pusat untuk presentasi eksekutif."
               </p>
               <p className="text-amber-400 font-semibold pt-1">
                 🔥 <i>Good luck for the presentation, keep up the stellar work, and let's crush those targets!</i> 🚀
@@ -478,35 +472,27 @@ export default function DashboardPage() {
 
             <div className="space-y-2">
               <span className="text-xs font-bold text-slate-300 block uppercase tracking-wider font-mono">
-                📋 Daftar Poin Item ({(() => {
-                  try {
-                    const raw = selectedReportDetail.salesPerformances || selectedReportDetail.metricsJson?.salesPerformances || [];
-                    return (typeof raw === "string" ? JSON.parse(raw) : raw).length;
-                  } catch(e) { return 0; }
-                })()} Item):
+                📋 Daftar Poin Item Gabungan ({(selectedReportDetail.combinedPerformances || []).length} Item):
               </span>
 
               <div className="max-h-64 overflow-y-auto bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2 font-mono text-xs">
-                {(() => {
-                  let items = [];
-                  try {
-                    const raw = selectedReportDetail.salesPerformances || selectedReportDetail.metricsJson?.salesPerformances || [];
-                    items = typeof raw === "string" ? JSON.parse(raw) : raw;
-                  } catch (e) { items = []; }
-
-                  return items.length > 0 ? (
-                    items.map((item, idx) => (
-                      <div key={idx} className="flex justify-between items-center bg-slate-900/80 px-3 py-2 rounded border border-slate-800/60">
-                        <span className="text-white font-bold">🔹 {item.salesName || `Item #${idx + 1}`}</span>
-                        <span className="text-amber-400">
-                          {Number(item.actualVal || item.targetVal) ? `Rp ${Number(item.actualVal || item.targetVal).toLocaleString("id-ID")}` : (item.note || "Tercatat")}
+                {(selectedReportDetail.combinedPerformances || []).length > 0 ? (
+                  selectedReportDetail.combinedPerformances.map((item, idx) => (
+                    <div key={idx} className="flex justify-between items-center bg-slate-900/80 px-3 py-2 rounded border border-slate-800/60 gap-2">
+                      <div className="flex items-center gap-2 truncate">
+                        <span className="px-1.5 py-0.5 text-[10px] rounded bg-purple-500/20 text-purple-300 border border-purple-500/30 shrink-0">
+                          {item._reportYear || selectedReportDetail.year}
                         </span>
+                        <span className="text-white font-bold truncate">🔹 {item.salesName || `Item #${idx + 1}`}</span>
                       </div>
-                    ))
-                  ) : (
-                    <p className="text-slate-500 italic text-center py-4">Belum ada rincian poin data.</p>
-                  );
-                })()}
+                      <span className="text-amber-400 shrink-0">
+                        {Number(item.actualVal || item.targetVal) ? `Rp ${Number(item.actualVal || item.targetVal).toLocaleString("id-ID")}` : (item.note || "Tercatat")}
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-slate-500 italic text-center py-4">Belum ada rincian poin data.</p>
+                )}
               </div>
             </div>
 

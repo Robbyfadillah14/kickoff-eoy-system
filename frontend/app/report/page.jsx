@@ -329,13 +329,12 @@ export default function ReportFormPage() {
           <select 
             value={year} 
             onChange={(e) => setYear(Number(e.target.value))} 
-            disabled={!!reportId} 
-            className="bg-slate-900 border border-slate-700 rounded px-3 py-1.5 text-sm text-white disabled:opacity-50 disabled:cursor-not-allowed font-mono"
+            className="bg-slate-900 border border-slate-700 rounded px-3 py-1.5 text-sm text-white font-mono cursor-pointer hover:border-cyan-500 transition"
           >
-            <option value={2024}>2024</option>
-            <option value={2025}>2025</option>
-            <option value={2026}>2026</option>
-            <option value={2027}>2027</option>
+            <option value={2024}>2024 (Run)</option>
+            <option value={2025}>2025 (Grow)</option>
+            <option value={2026}>2026 (Transform)</option>
+            <option value={2027}>2027 (Future)</option>
           </select>
         </div>
 
@@ -391,7 +390,7 @@ export default function ReportFormPage() {
 
       <div className="flex justify-between items-center mb-6">
         <p className="text-xs text-slate-400">Status saat ini: <b className="text-cyan-400 font-mono">{status}</b></p>
-        <a href={`/dashboard?year=${year}`} className="text-xs text-cyan-400 hover:underline">← Kembali ke Dashboard</a>
+        <a href={`/dashboard`} className="text-xs text-cyan-400 hover:underline">← Kembali ke Dashboard</a>
       </div>
 
       {/* RENDER KOMPONEN DIVISI KHUSUS SECARA DINAMIS */}
