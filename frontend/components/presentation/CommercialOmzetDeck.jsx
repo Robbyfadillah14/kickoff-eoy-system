@@ -22,11 +22,11 @@ const formatRupiah = (val) => {
 };
 
 export default function CommercialProfitDeck({ report, allYearlyReports = {} }) {
-  // Tahun historis operasional (2024-2026) dipisah dari Outlook 2027
   const historicalYears = [2024, 2025, 2026]; 
   const mJson = report?.metricsJson || {};
   const salesType = mJson.salesType || "PROFIT";
 
+  // Ambil murni dari laporan atau catatan ringkasan yang diinput user
   const userSummary = report?.achievementSummary || mJson.achievementSummary || "Belum ada ringkasan pencapaian yang di-input.";
 
   const totalSlides = 5;
@@ -68,7 +68,6 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
   let totalAllActual = 0;
   let totalAllTarget = 0;
   
-  // Ambil daftar nama sales unik yang aktif di tahun historis
   const activeSalesNames = new Set();
   historicalYears.forEach(yr => {
     const rep = getReportForYear(yr);
@@ -445,7 +444,7 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
                 <span className="text-[10px] text-purple-400 font-bold block mb-2 uppercase tracking-wider flex items-center gap-1.5">
                   <Zap size={14} /> Catatan Isu & Fokus Perbaikan 2027:
                 </span>
-                <p className="whitespace-pre-line text-sm text-slate-200 leading-relaxed font-sans">{backendSummary || outlook2027}</p>
+                <p className="whitespace-pre-line text-sm text-slate-200 leading-relaxed font-sans">{outlook2027}</p>
               </div>
 
               <div className="pt-2 border-t border-slate-800/80 flex flex-col sm:flex-row items-center justify-between gap-4">
