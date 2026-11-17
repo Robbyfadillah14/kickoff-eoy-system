@@ -28,7 +28,8 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
 
   const userSummary = report?.achievementSummary || mJson.achievementSummary || "Belum ada ringkasan pencapaian yang di-input.";
 
-  const totalSlides = 5;
+  // Total slide diperluas agar setiap poin pembahasan punya ruang luas dan informatif
+  const totalSlides = 6;
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
 
@@ -52,7 +53,7 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
   useEffect(() => {
     let timer;
     if (isPlaying) {
-      timer = setInterval(() => nextSlide(), 10000);
+      timer = setInterval(() => nextSlide(), 12000);
     }
     return () => clearInterval(timer);
   }, [isPlaying, nextSlide]);
@@ -84,7 +85,7 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
   const outlook2027 = report2027?.metricsJson?.strategicOutlook2027 || report2027?.strategicOutlook2027 || mJson.strategicOutlook2027 || "Belum ada strategic outlook atau isu 2027 yang di-input.";
 
   return (
-    <div className="relative w-full min-h-[740px] bg-slate-950 border border-slate-800 rounded-2xl shadow-2xl flex flex-col justify-between overflow-hidden font-sans text-white">
+    <div className="relative w-full min-h-[760px] bg-slate-950 border border-slate-800 rounded-2xl shadow-2xl flex flex-col justify-between overflow-hidden font-sans text-white">
       
       {/* 1. Header Bar */}
       <div className="flex items-center justify-between px-6 py-3.5 bg-slate-900/90 border-b border-slate-800/80 backdrop-blur-md z-10">
@@ -115,10 +116,9 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
       {/* 2. Slide Content Viewport */}
       <div className="flex-1 p-6 flex flex-col justify-center relative z-10 bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
         
-        {/* SLIDE 0: DASHBOARD UTAMA (2024-2026) */}
+        {/* SLIDE 0: EXECUTIVE SUMMARY DASHBOARD */}
         {currentSlide === 0 && (
           <div className="w-full space-y-4 animate-fadeIn">
-            
             {userSummary && (
               <div className="p-3.5 rounded-xl bg-blue-950/40 border border-blue-500/30 text-xs text-blue-200 flex items-start gap-2.5">
                 <span className="text-base">📌</span>
@@ -243,27 +243,65 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
           </div>
         )}
 
-        {/* SLIDE 1: PERFORMA PER SALES DENGAN INDIKATOR NAIK/TURUN TARGET VS AKTUAL */}
+        {/* SLIDE 1: RINCIAN PERFORMA SALES TAHUN 2024 */}
         {currentSlide === 1 && (
+          <div className="w-full max-w-4xl mx-auto space-y-4 animate-fadeIn">
+            <div className="bg-slate-900/90 border border-slate-800 p-6 rounded-3xl shadow-2xl space-y-4">
+              <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+                <span className="text-sm font-mono font-bold text-emerald-400 flex items-center gap-2 uppercase">
+                  <User size={18} /> Rincian Performa Sales — Tahun 2024
+                </span>
+                <span className="text-xs bg-emerald-500/10 text-emerald-400 px-3 py-1 rounded-full border border-emerald-500/20 font-bold font-mono">
+                  Tahun Historis #1
+                </span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[380px] overflow-y-auto pr-1">
+                {(() => {
+                  const rep = getReportForYear(2024);
+                  const sList = rep ? (rep?.metricsJson?.salesPerformances || rep?.salesPerformances || []) : [];
+                  if (sList.length === 0) return <div className="text-slate-500 text-xs italic col-span-2 text-center py-16">Belum ada data sales di tahun 2024.</div>;
+                  return sList.map((sales, idx) => {
+                    const tgt = Number(sales.targetProfit || sales.targetVal || 0);
+                    const act = Number(sales.actualVal || 0);
+                    const ach = tgt > 0 ? ((act / tgt) * 100) : 0;
+                    const isAchieved = act >= tgt;
+                    return (
+                      <div key={idx} className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-2 font-mono shadow-inner">
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="font-bold text-cyan-300 text-sm">{sales.salesName || `Sales #${idx + 1}`}</span>
+                          <span className={`text-xs font-bold px-2 py-0.5 rounded ${ach >= 100 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}`}>{ach.toFixed(1)}%</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-xs pt-1 border-t border-slate-900">
+                          <div><span className="text-slate-500 block">Target</span><span className="text-indigo-300 font-bold">{formatRupiah(tgt)}</span></div>
+                          <div><span className="text-slate-500 block">Aktual</span><span className="text-emerald-400 font-bold">{formatRupiah(act)}</span></div>
+                        </div>
+                        <div className={`p-2 rounded-xl flex items-center justify-between text-xs font-bold border ${isAchieved ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : 'bg-rose-500/10 text-rose-400 border-rose-500/30'}`}>
+                          <span className="flex items-center gap-1.5">{isAchieved ? <TrendingUp size={14} /> : <TrendingDown size={14} />}{isAchieved ? "Wah Naik Nih!" : "Wah Turun Nih!"}</span>
+                          <span className="font-sans text-[11px] opacity-80">{isAchieved ? "Target Tercapai" : "Belum Capai"}</span>
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* SLIDE 2: RINCIAN PERFORMA SALES TAHUN 2025 & 2026 */}
+        {currentSlide === 2 && (
           <div className="w-full max-w-5xl mx-auto space-y-4 animate-fadeIn">
-            <div className="grid grid-cols-3 gap-4">
-              {historicalYears.map((yr) => {
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {[2025, 2026].map((yr) => {
                 const rep = getReportForYear(yr);
                 const sList = rep ? (rep?.metricsJson?.salesPerformances || rep?.salesPerformances || []) : [];
-
                 return (
-                  <div key={yr} className="bg-slate-900/80 border border-slate-800 p-4 rounded-2xl shadow-xl flex flex-col justify-between h-[390px] relative overflow-hidden backdrop-blur-sm">
+                  <div key={yr} className="bg-slate-900/80 border border-slate-800 p-5 rounded-3xl shadow-xl flex flex-col justify-between h-[390px] relative overflow-hidden">
                     <div className="absolute top-0 left-0 w-full h-1 bg-emerald-500"></div>
-                    
                     <div className="flex justify-between items-center border-b border-slate-800 pb-2.5">
-                      <span className="text-xs font-mono font-bold text-white flex items-center gap-1.5">
-                        <User size={14} className="text-emerald-400" /> TAHUN {yr}
-                      </span>
-                      <span className="text-[10px] font-mono bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/20 font-bold">
-                        {sList.length} Sales
-                      </span>
+                      <span className="text-xs font-mono font-bold text-white flex items-center gap-1.5"><User size={14} className="text-emerald-400" /> TAHUN {yr}</span>
+                      <span className="text-[10px] font-mono bg-emerald-500/10 text-emerald-400 px-2.5 py-0.5 rounded border border-emerald-500/20 font-bold">{sList.length} Sales</span>
                     </div>
-
                     <div className="flex-1 overflow-y-auto space-y-2.5 pt-2 custom-scrollbar pr-1">
                       {sList.length > 0 ? (
                         sList.map((sales, idx) => {
@@ -271,54 +309,26 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
                           const act = Number(sales.actualVal || 0);
                           const ach = tgt > 0 ? ((act / tgt) * 100) : 0;
                           const isAchieved = act >= tgt;
-
                           return (
-                            <div key={idx} className="bg-slate-950 p-3 rounded-xl border border-slate-800/80 space-y-2 font-mono shadow-inner">
+                            <div key={idx} className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-1.5 font-mono shadow-inner">
                               <div className="flex justify-between items-center text-xs">
-                                <span className="font-bold text-cyan-300 truncate max-w-[120px]" title={sales.salesName}>
-                                  {sales.salesName || `Sales #${idx + 1}`}
-                                </span>
-                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${ach >= 100 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}`}>
-                                  {ach.toFixed(1)}%
-                                </span>
+                                <span className="font-bold text-cyan-300 truncate max-w-[130px]">{sales.salesName || `Sales #${idx + 1}`}</span>
+                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${ach >= 100 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}`}>{ach.toFixed(1)}%</span>
                               </div>
-
                               <div className="grid grid-cols-2 gap-2 text-[10px] pt-1 border-t border-slate-900">
-                                <div>
-                                  <span className="text-slate-500 block">Target</span>
-                                  <span className="text-indigo-300 font-bold">{formatRupiah(tgt)}</span>
-                                </div>
-                                <div>
-                                  <span className="text-slate-500 block">Aktual</span>
-                                  <span className="text-emerald-400 font-bold">{formatRupiah(act)}</span>
-                                </div>
+                                <div><span className="text-slate-500 block">Target</span><span className="text-indigo-300 font-bold">{formatRupiah(tgt)}</span></div>
+                                <div><span className="text-slate-500 block">Aktual</span><span className="text-emerald-400 font-bold">{formatRupiah(act)}</span></div>
                               </div>
-
-                              {/* Indikator Status Naik / Turun terhadap Target */}
-                              <div className={`p-1.5 rounded-lg flex items-center justify-between text-[10px] font-bold border ${
-                                isAchieved 
-                                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' 
-                                  : 'bg-rose-500/10 text-rose-400 border-rose-500/30'
-                              }`}>
-                                <span className="flex items-center gap-1">
-                                  {isAchieved ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-                                  {isAchieved ? "Wah Naik Nih! 📈" : "Wah Turun Nih! 📉"}
-                                </span>
-                                <span className="font-sans text-[9px]">{isAchieved ? "Target Tercapai" : "Belum Capai Target"}</span>
+                              <div className={`p-1.5 rounded-lg flex items-center justify-between text-[10px] font-bold border ${isAchieved ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : 'bg-rose-500/10 text-rose-400 border-rose-500/30'}`}>
+                                <span className="flex items-center gap-1">{isAchieved ? <TrendingUp size={12} /> : <TrendingDown size={12} />}{isAchieved ? "Wah Naik Nih!" : "Wah Turun Nih!"}</span>
+                                <span className="font-sans text-[9px] opacity-80">{isAchieved ? "Tercapai" : "Belum"}</span>
                               </div>
                             </div>
                           );
                         })
                       ) : (
-                        <div className="text-slate-500 text-xs italic text-center py-20 font-mono">
-                          Belum ada data personel sales di tahun {yr}.
-                        </div>
+                        <div className="text-slate-500 text-xs italic text-center py-24 font-mono">Belum ada data sales di tahun {yr}.</div>
                       )}
-                    </div>
-
-                    <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800 flex justify-between items-center text-[10px] font-mono text-slate-400 pt-2">
-                      <span>Status: <b className="text-emerald-400">{rep ? "Logged" : "Kosong"}</b></span>
-                      <span className="text-slate-500 font-bold">Tahun {yr}</span>
                     </div>
                   </div>
                 );
@@ -327,15 +337,14 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
           </div>
         )}
 
-        {/* SLIDE 2: DAFTAR PRODUK DENGAN INDIKATOR NAIK/TURUN TAHUN LALU VS BERJALAN */}
-        {currentSlide === 2 && (
+        {/* SLIDE 3: RINCIAN DAFTAR PRODUK LENGKAP (2024 - 2026) */}
+        {currentSlide === 3 && (
           <div className="w-full max-w-5xl mx-auto space-y-4 animate-fadeIn">
             <div className="grid grid-cols-3 gap-4">
               {historicalYears.map((yr) => {
                 const rep = getReportForYear(yr);
                 const metrics = rep ? (rep?.metricsJson || rep || {}) : {};
                 const sList = metrics.salesPerformances || [];
-                
                 let allProductsForYear = [];
                 if (rep) {
                   sList.forEach(sp => {
@@ -356,53 +365,34 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
                 return (
                   <div key={yr} className="bg-slate-900/80 border border-slate-800 p-4 rounded-2xl shadow-xl flex flex-col justify-between h-[390px] relative overflow-hidden backdrop-blur-sm">
                     <div className="absolute top-0 left-0 w-full h-1 bg-cyan-500"></div>
-                    
                     <div className="flex justify-between items-center border-b border-slate-800 pb-2.5">
-                      <span className="text-xs font-mono font-bold text-white flex items-center gap-1.5">
-                        <Package size={14} className="text-cyan-400" /> PRODUK TAHUN {yr}
-                      </span>
-                      <span className="text-[10px] font-mono bg-cyan-950 text-cyan-400 px-2 py-0.5 rounded border border-cyan-500/30 font-bold">
-                        {allProductsForYear.length} Item
-                      </span>
+                      <span className="text-xs font-mono font-bold text-white flex items-center gap-1.5"><Package size={14} className="text-cyan-400" /> PRODUK TAHUN {yr}</span>
+                      <span className="text-[10px] font-mono bg-cyan-950 text-cyan-400 px-2 py-0.5 rounded border border-cyan-500/30 font-bold">{allProductsForYear.length} Item</span>
                     </div>
-
                     <div className="flex-1 overflow-y-auto space-y-2.5 pt-2 custom-scrollbar pr-1">
                       {allProductsForYear.length > 0 ? (
                         allProductsForYear.map((prod, idx) => {
-                          const isIncreased = prod.currentVal >= prod.prevValInput;
-
+                          const hasPrev = prod.prevValInput > 0;
+                          const isIncreased = !hasPrev || prod.currentVal >= prod.prevValInput;
                           return (
                             <div key={idx} className="bg-slate-950 p-3 rounded-xl border border-slate-800/80 space-y-1.5 font-mono shadow-inner">
                               <div className="flex justify-between items-center text-xs">
-                                <span className="font-bold text-cyan-300 truncate max-w-[130px]" title={prod.productName}>
-                                  {prod.productName}
-                                </span>
-                                <span className="text-[10px] text-slate-400 font-bold">
-                                  Akt: <b className="text-emerald-400">{formatRupiah(prod.currentVal)}</b>
-                                </span>
+                                <span className="font-bold text-cyan-300 truncate max-w-[130px]" title={prod.productName}>{prod.productName}</span>
+                                <span className="text-[10px] text-slate-400 font-bold">Akt: <b className="text-emerald-400">{formatRupiah(prod.currentVal)}</b></span>
                               </div>
-
                               <div className="flex justify-between items-center text-[10px] pt-1 border-t border-slate-900 text-slate-400">
                                 <span>Lalu: {formatRupiah(prod.prevValInput)}</span>
-                                <span className={`px-1.5 py-0.5 rounded font-bold flex items-center gap-1 ${
-                                  isIncreased 
-                                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
-                                    : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
-                                }`}>
-                                  {isIncreased ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
-                                  {isIncreased ? "Wah Naik Nih! 📈" : "Wah Turun Nih! 📉"}
+                                <span className={`px-1.5 py-0.5 rounded font-bold flex items-center gap-1 ${!hasPrev ? 'bg-slate-800 text-slate-300 border border-slate-700' : isIncreased ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'}`}>
+                                  {!hasPrev ? <>Baseline 🚀</> : isIncreased ? <><TrendingUp size={11} /> Wah Naik Nih!</> : <><TrendingDown size={11} /> Wah Turun Nih!</>}
                                 </span>
                               </div>
                             </div>
                           );
                         })
                       ) : (
-                        <div className="text-slate-500 text-xs italic text-center py-20 font-mono">
-                          Belum ada data produk di tahun {yr}.
-                        </div>
+                        <div className="text-slate-500 text-xs italic text-center py-20 font-mono">Belum ada data produk di tahun {yr}.</div>
                       )}
                     </div>
-
                     <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800 flex justify-between items-center text-[10px] font-mono text-slate-400 pt-2">
                       <span>Status: <b className="text-cyan-400">{rep ? "Logged" : "Kosong"}</b></span>
                       <span className="text-slate-500 font-bold">Tahun {yr}</span>
@@ -414,40 +404,28 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
           </div>
         )}
 
-        {/* SLIDE 3: TEROBOSAN & INOVASI (2024-2026) */}
-        {currentSlide === 3 && (
+        {/* SLIDE 4: INOVASI & TEROBOSAN KOMERSIAL */}
+        {currentSlide === 4 && (
           <div className="w-full max-w-5xl mx-auto space-y-4 animate-fadeIn">
             <div className="grid grid-cols-3 gap-4">
               {historicalYears.map((yr) => {
                 const rep = getReportForYear(yr);
                 const metrics = rep ? (rep?.metricsJson || rep || {}) : {};
                 const innovations = rep ? (rep?.branchInnovations || metrics.branchInnovations || "") : "";
-
                 return (
-                  <div key={yr} className="bg-slate-900/70 border border-purple-500/30 p-4 rounded-2xl space-y-3 shadow-xl relative overflow-hidden flex flex-col justify-between h-[390px] backdrop-blur-sm group hover:border-purple-500/60 transition">
+                  <div key={yr} className="bg-slate-900/70 border border-purple-500/30 p-4 rounded-2xl space-y-3 shadow-xl relative overflow-hidden flex flex-col justify-between h-[390px] backdrop-blur-sm group">
                     <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-purple-500 via-pink-500 to-indigo-500"></div>
-                    
                     <div className="flex justify-between items-center border-b border-slate-800 pb-2.5">
                       <div className="flex items-center gap-1.5">
-                        <div className="w-6 h-6 rounded-lg bg-purple-500/20 text-purple-300 flex items-center justify-center font-bold">
-                          <Zap size={14} />
-                        </div>
+                        <div className="w-6 h-6 rounded-lg bg-purple-500/20 text-purple-300 flex items-center justify-center font-bold"><Zap size={14} /></div>
                         <span className="text-xs font-mono font-bold text-white">INOVASI TAHUN {yr}</span>
                       </div>
-                      <span className="text-[9px] bg-purple-500/20 text-purple-300 px-2.5 py-0.5 rounded-full border border-purple-500/30 font-bold uppercase tracking-wider">
-                        Strategy
-                      </span>
+                      <span className="text-[9px] bg-purple-500/20 text-purple-300 px-2.5 py-0.5 rounded-full border border-purple-500/30 font-bold uppercase tracking-wider">Strategy</span>
                     </div>
-
                     <div className="flex-1 overflow-y-auto bg-slate-950/80 p-3.5 rounded-xl border border-slate-800 text-xs font-mono text-slate-200 leading-relaxed custom-scrollbar shadow-inner flex flex-col">
-                      <span className="text-[10px] font-bold text-purple-400 block mb-1.5 uppercase tracking-wider flex items-center gap-1">
-                        <Sparkles size={12} /> Catatan Terobosan:
-                      </span>
-                      <p className="whitespace-pre-line text-slate-300 text-xs leading-relaxed italic font-sans">
-                        {rep ? (innovations || "Belum ada catatan inovasi atau terobosan strategis untuk tahun ini.") : "Belum ada data laporan untuk tahun ini."}
-                      </p>
+                      <span className="text-[10px] font-bold text-purple-400 block mb-1.5 uppercase tracking-wider flex items-center gap-1"><Sparkles size={12} /> Catatan Terobosan:</span>
+                      <p className="whitespace-pre-line text-slate-300 text-xs leading-relaxed italic font-sans">{rep ? (innovations || "Belum ada catatan inovasi atau terobosan strategis untuk tahun ini.") : "Belum ada data laporan untuk tahun ini."}</p>
                     </div>
-
                     <div className="flex items-center justify-between text-xs text-slate-400 font-mono pt-1">
                       <span>Status: <b className="text-emerald-400">{rep ? "Logged" : "-"}</b></span>
                       <span className="text-purple-400 font-semibold">Tahun {yr}</span>
@@ -459,39 +437,25 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
           </div>
         )}
 
-        {/* SLIDE 4: BAB PENUTUP KHUSUS — STRATEGIC OUTLOOK 2027 */}
-        {currentSlide === 4 && (
+        {/* SLIDE 5: STRATEGIC OUTLOOK 2027 (FINAL STAGE) */}
+        {currentSlide === 5 && (
           <div className="w-full max-w-4xl mx-auto space-y-6 animate-fadeIn text-center">
             <div className="bg-gradient-to-br from-purple-950/80 via-slate-900 to-slate-950 border border-purple-500/40 p-8 sm:p-10 rounded-3xl shadow-2xl space-y-6 relative overflow-hidden backdrop-blur-md">
               <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-purple-500 via-emerald-400 to-indigo-500"></div>
-
               <div className="inline-flex items-center gap-2 bg-purple-500/10 text-purple-300 border border-purple-500/30 px-4 py-1.5 rounded-full text-xs font-mono font-bold uppercase tracking-widest shadow-md">
                 <Sparkles size={14} className="text-purple-400" /> FINAL STAGE — STRATEGIC OUTLOOK 2027
               </div>
-
-              <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-                Proyeksi Masa Depan & Fokus Inovasi 2027
-              </h2>
-
+              <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">Proyeksi Masa Depan & Fokus Inovasi 2027</h2>
               <div className="bg-slate-900/90 border border-purple-500/30 p-6 rounded-2xl text-left text-xs font-mono text-slate-200 shadow-inner leading-relaxed min-h-[140px] flex flex-col justify-center">
-                <span className="text-[10px] text-purple-400 font-bold block mb-2 uppercase tracking-wider flex items-center gap-1.5">
-                  <Zap size={14} /> Catatan Isu & Fokus Perbaikan 2027:
-                </span>
+                <span className="text-[10px] text-purple-400 font-bold block mb-2 uppercase tracking-wider flex items-center gap-1.5"><Zap size={14} /> Catatan Isu & Fokus Perbaikan 2027:</span>
                 <p className="whitespace-pre-line text-sm text-slate-200 leading-relaxed font-sans">{outlook2027}</p>
               </div>
-
               <div className="pt-2 border-t border-slate-800/80 flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div className="text-left">
-                  <h4 className="text-sm font-bold text-emerald-400 flex items-center gap-1.5">
-                    <CheckCircle2 size={16} /> Siap Melangkah ke Tahun 2027!
-                  </h4>
+                  <h4 className="text-sm font-bold text-emerald-400 flex items-center gap-1.5"><CheckCircle2 size={16} /> Siap Melangkah ke Tahun 2027!</h4>
                   <p className="text-[11px] text-slate-400 font-mono">Komitmen pertumbuhan berkelanjutan & pencapaian target komersial.</p>
                 </div>
-                
-                <button 
-                  onClick={() => setCurrentSlide(0)}
-                  className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 text-slate-950 font-black text-xs uppercase tracking-wider shadow-lg hover:brightness-110 transition cursor-pointer flex items-center gap-2"
-                >
+                <button onClick={() => setCurrentSlide(0)} className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 text-slate-950 font-black text-xs uppercase tracking-wider shadow-lg hover:brightness-110 transition cursor-pointer flex items-center gap-2">
                   <RotateCcw size={15} /> Restart Presentation
                 </button>
               </div>
@@ -511,12 +475,12 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
           <ChevronLeft size={16} /> Sebelumnya
         </button>
 
-        <div className="flex items-center gap-2">
-          {["Dashboard 24–26", "Performa Per Sales", "Daftar Produk", "Inovasi Komersial", "Outlook 2027"].map((label, idx) => (
+        <div className="flex items-center gap-1.5 overflow-x-auto max-w-xl">
+          {["Dashboard", "Sales 2024", "Sales 2025-26", "Daftar Produk", "Inovasi", "Outlook 2027"].map((label, idx) => (
             <button
               key={idx}
               onClick={() => setCurrentSlide(idx)}
-              className={`px-3 py-1 rounded-xl text-xs font-mono font-bold transition cursor-pointer ${
+              className={`px-2.5 py-1 rounded-xl text-[11px] font-mono font-bold transition cursor-pointer shrink-0 ${
                 currentSlide === idx
                   ? "bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/30"
                   : "bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800"
