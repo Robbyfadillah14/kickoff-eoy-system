@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { 
   ChevronLeft, ChevronRight, Play, Pause, RotateCcw, TrendingUp, ArrowUpRight, 
   BarChart3, Target, Sparkles, CheckCircle2, Zap, 
-  ShieldCheck, ArrowRightLeft, Flag, CheckCircle, Calendar, User, Package, AlertTriangle
+  ShieldCheck, ArrowRightLeft, Flag, CheckCircle, Calendar, User, Package, AlertTriangle, TrendingDown
 } from "lucide-react";
 
 const formatRupiah = (val) => {
@@ -243,7 +243,7 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
           </div>
         )}
 
-        {/* SLIDE 1: RINCIAN AKTUAL VS TARGET PER SALES (2024-2026) */}
+        {/* SLIDE 1: PERFORMA PER SALES DENGAN INDIKATOR NAIK/TURUN TARGET VS AKTUAL */}
         {currentSlide === 1 && (
           <div className="w-full max-w-5xl mx-auto space-y-4 animate-fadeIn">
             <div className="grid grid-cols-3 gap-4">
@@ -252,7 +252,7 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
                 const sList = rep ? (rep?.metricsJson?.salesPerformances || rep?.salesPerformances || []) : [];
 
                 return (
-                  <div key={yr} className="bg-slate-900/80 border border-slate-800 p-4 rounded-2xl shadow-xl flex flex-col justify-between h-[360px] relative overflow-hidden backdrop-blur-sm">
+                  <div key={yr} className="bg-slate-900/80 border border-slate-800 p-4 rounded-2xl shadow-xl flex flex-col justify-between h-[390px] relative overflow-hidden backdrop-blur-sm">
                     <div className="absolute top-0 left-0 w-full h-1 bg-emerald-500"></div>
                     
                     <div className="flex justify-between items-center border-b border-slate-800 pb-2.5">
@@ -270,9 +270,10 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
                           const tgt = Number(sales.targetProfit || sales.targetVal || 0);
                           const act = Number(sales.actualVal || 0);
                           const ach = tgt > 0 ? ((act / tgt) * 100) : 0;
+                          const isAchieved = act >= tgt;
 
                           return (
-                            <div key={idx} className="bg-slate-950 p-3 rounded-xl border border-slate-800/80 space-y-1.5 font-mono shadow-inner">
+                            <div key={idx} className="bg-slate-950 p-3 rounded-xl border border-slate-800/80 space-y-2 font-mono shadow-inner">
                               <div className="flex justify-between items-center text-xs">
                                 <span className="font-bold text-cyan-300 truncate max-w-[120px]" title={sales.salesName}>
                                   {sales.salesName || `Sales #${idx + 1}`}
@@ -281,6 +282,7 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
                                   {ach.toFixed(1)}%
                                 </span>
                               </div>
+
                               <div className="grid grid-cols-2 gap-2 text-[10px] pt-1 border-t border-slate-900">
                                 <div>
                                   <span className="text-slate-500 block">Target</span>
@@ -290,6 +292,19 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
                                   <span className="text-slate-500 block">Aktual</span>
                                   <span className="text-emerald-400 font-bold">{formatRupiah(act)}</span>
                                 </div>
+                              </div>
+
+                              {/* Indikator Status Naik / Turun terhadap Target */}
+                              <div className={`p-1.5 rounded-lg flex items-center justify-between text-[10px] font-bold border ${
+                                isAchieved 
+                                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' 
+                                  : 'bg-rose-500/10 text-rose-400 border-rose-500/30'
+                              }`}>
+                                <span className="flex items-center gap-1">
+                                  {isAchieved ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+                                  {isAchieved ? "Wah Naik Nih! 📈" : "Wah Turun Nih! 📉"}
+                                </span>
+                                <span className="font-sans text-[9px]">{isAchieved ? "Target Tercapai" : "Belum Capai Target"}</span>
                               </div>
                             </div>
                           );
@@ -312,7 +327,7 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
           </div>
         )}
 
-        {/* SLIDE 2: KATEGORI PRODUK (2024-2026) */}
+        {/* SLIDE 2: DAFTAR PRODUK DENGAN INDIKATOR NAIK/TURUN TAHUN LALU VS BERJALAN */}
         {currentSlide === 2 && (
           <div className="w-full max-w-5xl mx-auto space-y-4 animate-fadeIn">
             <div className="grid grid-cols-3 gap-4">
@@ -328,8 +343,9 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
                       sp.topProducts.forEach(prod => {
                         if (prod.productName && prod.productName.trim() !== "") {
                           allProductsForYear.push({
-                            ...prod,
-                            salesPerson: sp.salesName || "Sales"
+                            productName: prod.productName.trim(),
+                            currentVal: Number(prod.category || prod.actualVal || 0),
+                            prevValInput: Number(prod.prevCategory || prod.prevVal || 0)
                           });
                         }
                       });
@@ -337,40 +353,58 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
                   });
                 }
 
-                const totalProdCount = allProductsForYear.length;
-                const topProd = allProductsForYear.length > 0 ? allProductsForYear[0] : null;
-
                 return (
-                  <div key={yr} className="bg-slate-900/70 border border-slate-800/80 p-4 rounded-2xl space-y-3 shadow-xl relative overflow-hidden flex flex-col justify-between h-[360px] backdrop-blur-sm">
+                  <div key={yr} className="bg-slate-900/80 border border-slate-800 p-4 rounded-2xl shadow-xl flex flex-col justify-between h-[390px] relative overflow-hidden backdrop-blur-sm">
                     <div className="absolute top-0 left-0 w-full h-1 bg-cyan-500"></div>
-                    <div className="flex justify-between items-center text-xs font-mono font-bold text-slate-200 border-b border-slate-800 pb-2">
-                      <span className="flex items-center gap-1"><ArrowRightLeft size={13} className="text-cyan-400" /> PRODUK TAHUN {yr}</span>
-                      <span className="text-[10px] bg-cyan-950 text-cyan-400 px-2 py-0.5 rounded border border-cyan-500/30 font-bold">
-                        {totalProdCount} Item
+                    
+                    <div className="flex justify-between items-center border-b border-slate-800 pb-2.5">
+                      <span className="text-xs font-mono font-bold text-white flex items-center gap-1.5">
+                        <Package size={14} className="text-cyan-400" /> PRODUK TAHUN {yr}
+                      </span>
+                      <span className="text-[10px] font-mono bg-cyan-950 text-cyan-400 px-2 py-0.5 rounded border border-cyan-500/30 font-bold">
+                        {allProductsForYear.length} Item
                       </span>
                     </div>
 
-                    <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-center font-mono shadow-inner">
-                      <span className="text-2xl font-black text-cyan-400">{totalProdCount}</span>
-                      <span className="text-[10px] text-slate-400 block mt-0.5">Total Produk Terdaftar</span>
-                    </div>
+                    <div className="flex-1 overflow-y-auto space-y-2.5 pt-2 custom-scrollbar pr-1">
+                      {allProductsForYear.length > 0 ? (
+                        allProductsForYear.map((prod, idx) => {
+                          const isIncreased = prod.currentVal >= prod.prevValInput;
 
-                    <div className="flex-1 bg-slate-950/90 p-3.5 rounded-xl border border-slate-800/80 flex flex-col justify-center font-mono space-y-2">
-                      <span className="text-[10px] text-slate-400 font-bold block text-center">Top Produk Unggulan:</span>
-                      {topProd ? (
-                        <div className="text-center space-y-1 bg-slate-900 p-3 rounded-lg border border-slate-800">
-                          <span className="text-xs font-bold text-white block truncate">{topProd.productName}</span>
-                          <span className="text-[11px] text-emerald-400 font-bold block">{formatRupiah(topProd.category || topProd.actualVal)}</span>
-                        </div>
+                          return (
+                            <div key={idx} className="bg-slate-950 p-3 rounded-xl border border-slate-800/80 space-y-1.5 font-mono shadow-inner">
+                              <div className="flex justify-between items-center text-xs">
+                                <span className="font-bold text-cyan-300 truncate max-w-[130px]" title={prod.productName}>
+                                  {prod.productName}
+                                </span>
+                                <span className="text-[10px] text-slate-400 font-bold">
+                                  Akt: <b className="text-emerald-400">{formatRupiah(prod.currentVal)}</b>
+                                </span>
+                              </div>
+
+                              <div className="flex justify-between items-center text-[10px] pt-1 border-t border-slate-900 text-slate-400">
+                                <span>Lalu: {formatRupiah(prod.prevValInput)}</span>
+                                <span className={`px-1.5 py-0.5 rounded font-bold flex items-center gap-1 ${
+                                  isIncreased 
+                                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
+                                    : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                                }`}>
+                                  {isIncreased ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
+                                  {isIncreased ? "Wah Naik Nih! 📈" : "Wah Turun Nih! 📉"}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })
                       ) : (
-                        <div className="text-slate-500 text-xs italic text-center py-6">
-                          Belum ada data produk.
+                        <div className="text-slate-500 text-xs italic text-center py-20 font-mono">
+                          Belum ada data produk di tahun {yr}.
                         </div>
                       )}
                     </div>
 
-                    <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800 flex items-center justify-between text-xs font-mono text-slate-400">
-                      <span>Status: <b className="text-cyan-400">{rep ? "Aktif" : "Kosong"}</b></span>
+                    <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800 flex justify-between items-center text-[10px] font-mono text-slate-400 pt-2">
+                      <span>Status: <b className="text-cyan-400">{rep ? "Logged" : "Kosong"}</b></span>
                       <span className="text-slate-500 font-bold">Tahun {yr}</span>
                     </div>
                   </div>
@@ -390,7 +424,7 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
                 const innovations = rep ? (rep?.branchInnovations || metrics.branchInnovations || "") : "";
 
                 return (
-                  <div key={yr} className="bg-slate-900/70 border border-purple-500/30 p-4 rounded-2xl space-y-3 shadow-xl relative overflow-hidden flex flex-col justify-between h-[360px] backdrop-blur-sm group hover:border-purple-500/60 transition">
+                  <div key={yr} className="bg-slate-900/70 border border-purple-500/30 p-4 rounded-2xl space-y-3 shadow-xl relative overflow-hidden flex flex-col justify-between h-[390px] backdrop-blur-sm group hover:border-purple-500/60 transition">
                     <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-purple-500 via-pink-500 to-indigo-500"></div>
                     
                     <div className="flex justify-between items-center border-b border-slate-800 pb-2.5">
@@ -478,7 +512,7 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
         </button>
 
         <div className="flex items-center gap-2">
-          {["Dashboard 24–26", "Performa Per Sales", "Kategori Produk", "Inovasi Komersial", "Outlook 2027"].map((label, idx) => (
+          {["Dashboard 24–26", "Performa Per Sales", "Daftar Produk", "Inovasi Komersial", "Outlook 2027"].map((label, idx) => (
             <button
               key={idx}
               onClick={() => setCurrentSlide(idx)}
