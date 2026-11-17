@@ -304,7 +304,7 @@ export default function ReportFormPage() {
         setMsg("Laporan berhasil diperbarui & disimpan. Mengalihkan ke dashboard...");
 
         setTimeout(() => {
-          window.location.href = `/dashboard?year=${year}`;
+          window.location.href = `/dashboard`;
         }, 1000);
       } else {
         setMsg(resData?.error || resData?.message || "Gagal menyimpan laporan");
@@ -328,7 +328,76 @@ export default function ReportFormPage() {
           </div>
           <select 
             value={year} 
-            onChange={(e) => setYear(Number(e.target.value))} 
+            onChange={async (e) => {
+              const newYear = Number(e.target.value);
+              setYear(newYear);
+              setReportId(null);
+              
+              const currentPlantId = user?.plantId || user?.plant?.id;
+              const currentDeptId = currentDept?.id || activeDeptId;
+              
+              if (currentPlantId && currentDeptId) {
+                try {
+                  const res = await fetch(`/api/reports?year=${newYear}&plantId=${currentPlantId}&departmentId=${currentDeptId}`);
+                  const resData = await res.json();
+                  const list = Array.isArray(resData) ? resData : (resData.data || resData.reports || []);
+                  
+                  if (list.length > 0) {
+                    const targetRep = list[0];
+                    setReportId(targetRep.id);
+                    setStatus(targetRep.status);
+                    
+                    if (targetRep.attachments && Array.isArray(targetRep.attachments)) {
+                      setAttachments(targetRep.attachments);
+                    }
+
+                    const mJson = targetRep.metricsJson || {};
+                    let loadedKpis = mJson.kpiList || [];
+
+                    setForm((f) => ({
+                      ...f,
+                      ...mJson, 
+                      salesType: targetRep.salesType || mJson.salesType || "OMZET",
+                      achievementSummary: targetRep.achievementSummary || "",
+                      branchInnovations: mJson.branchInnovations || targetRep.branchInnovations || "",
+                      challenges: targetRep.challenges?.length ? targetRep.challenges : (mJson.challenges || f.challenges),
+                      opportunities: targetRep.opportunities?.length ? targetRep.opportunities : (mJson.opportunities || f.opportunities),
+                      kpiList: loadedKpis.length ? loadedKpis : f.kpiList,
+                      salesPerformances: targetRep.salesPerformances?.length ? targetRep.salesPerformances : (mJson.salesPerformances || f.salesPerformances),
+                      salesSupportPerformances: mJson.salesSupportPerformances || f.salesSupportPerformances,
+                      weeklyRevenue: mJson.weeklyRevenue || f.weeklyRevenue,
+                      targetAchievedPct: mJson.targetAchievedPct || "",
+                    }));
+                  } else {
+                    setReportId(null);
+                    setStatus("DRAFT");
+                    setAttachments([]);
+                    setForm({
+                      salesType: "OMZET",
+                      achievementSummary: "", 
+                      branchInnovations: "",
+                      challenges: [{ title: "" }], 
+                      opportunities: [{ title: "" }],
+                      kpiList: [], 
+                      salesPerformances: [{ 
+                        id: 1, 
+                        salesName: "", 
+                        targetVal: "", 
+                        actualVal: "", 
+                        targetProfit: "", 
+                        note: "",
+                        topProducts: [{ id: 1, productName: "", totalQty: "", category: "" }] 
+                      }],
+                      salesSupportPerformances: [{ id: 1, supportName: "", taskDesc: "", statusOrAchieve: "", note: "" }],
+                      weeklyRevenue: ["", "", "", "", "", ""], 
+                      targetAchievedPct: "",
+                    });
+                  }
+                } catch (err) {
+                  console.error("Gagal sinkronisasi tahun form:", err);
+                }
+              }
+            }} 
             className="bg-slate-900 border border-slate-700 rounded px-3 py-1.5 text-sm text-white font-mono cursor-pointer hover:border-cyan-500 transition"
           >
             <option value={2024}>2024 (Run)</option>
