@@ -23,14 +23,12 @@ const formatRupiah = (val) => {
 };
 
 export default function CommercialProfitDeck({ report, allYearlyReports = {} }) {
-  const targetYears = [2024, 2025, 2026, 2027]; // Diperluas hingga 2027 untuk cakupan penuh
+  const targetYears = [2024, 2025, 2026, 2027]; 
   const mJson = report?.metricsJson || {};
   const salesType = mJson.salesType || "PROFIT";
 
-  // Ambil hasil Intelligence Analysis dari Backend (jika file Excel di-upload)
-  const intelligenceAnalysis = mJson.intelligenceAnalysis || {};
-  const backendAnomalies = intelligenceAnalysis.anomalies || [];
-  const backendSummary = report?.achievementSummary || intelligenceAnalysis?.summary?.executiveSummary;
+  // Ambil murni dari laporan atau catatan ringkasan yang diinput user
+  const userSummary = report?.achievementSummary || mJson.achievementSummary || "Belum ada ringkasan pencapaian yang di-input.";
 
   const totalSlides = 5;
   const [currentSlide, setCurrentSlide] = useState(0);
@@ -127,13 +125,13 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
         {currentSlide === 0 && (
           <div className="w-full space-y-4 animate-fadeIn">
             
-            {/* 💡 INTELLIGENCE ENGINE BRIEFING DARI BACKEND */}
-            {backendSummary && (
+            {/* 📌 CATATAN / RINGKASAN LAPORAN MURNI DARI USER */}
+            {userSummary && (
               <div className="p-3.5 rounded-xl bg-blue-950/40 border border-blue-500/30 text-xs text-blue-200 flex items-start gap-2.5">
-                <span className="text-base">💡</span>
+                <span className="text-base">📌</span>
                 <div>
-                  <b className="text-blue-300 font-mono block mb-0.5">Executive Intelligence Briefing (Otonom):</b>
-                  <p className="text-slate-200 leading-relaxed font-sans">{backendSummary}</p>
+                  <b className="text-blue-300 font-mono block mb-0.5">Catatan & Ringkasan Laporan Divisi:</b>
+                  <p className="text-slate-200 leading-relaxed font-sans">{userSummary}</p>
                 </div>
               </div>
             )}
@@ -271,20 +269,6 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
                   Enterprise View
                 </span>
               </div>
-
-              {/* ⚠️ TAMPILKAN PANEL ANOMALI JIKA ADA */}
-              {backendAnomalies.length > 0 && (
-                <div className="p-3 bg-amber-950/30 border border-amber-500/40 rounded-xl text-xs font-mono text-amber-300 space-y-1">
-                  <span className="font-bold flex items-center gap-1">
-                    <AlertTriangle size={14} /> Deteksi Anomali Kinerja & Rekomendasi Preskriptif:
-                  </span>
-                  {backendAnomalies.map((anom, idx) => (
-                    <p key={idx} className="text-[11px] text-slate-200">
-                      • <b>{anom.item}</b> (Aktual: {anom.actual}, Target: {anom.target}) — <i className="text-amber-200">{anom.recommendation}</i>
-                    </p>
-                  ))}
-                </div>
-              )}
 
               <div className="bg-slate-950 p-6 rounded-2xl border border-slate-800/80 shadow-inner space-y-4 font-mono">
                 <div className="flex justify-between items-center text-xs border-b border-slate-900 pb-2">
@@ -448,7 +432,7 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
           </div>
         )}
 
-        {/* SLIDE 4: EXECUTIVE FINAL STAGE & POWERFUL CLOSING */}
+        {/* SLIDE 4: BAB PENUTUP — STRATEGIC OUTLOOK 2027 */}
         {currentSlide === 4 && (
           <div className="w-full max-w-4xl mx-auto space-y-6 animate-fadeIn text-center">
             <div className="bg-gradient-to-br from-purple-950/80 via-slate-900 to-slate-950 border border-purple-500/40 p-8 sm:p-10 rounded-3xl shadow-2xl space-y-6 relative overflow-hidden backdrop-blur-md">
@@ -466,7 +450,7 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
                 <span className="text-[10px] text-purple-400 font-bold block mb-2 uppercase tracking-wider flex items-center gap-1.5">
                   <Zap size={14} /> Catatan Isu & Fokus Perbaikan 2027:
                 </span>
-                <p className="whitespace-pre-line text-sm text-slate-200 leading-relaxed font-sans">{backendSummary || outlook2027}</p>
+                <p className="whitespace-pre-line text-sm text-slate-200 leading-relaxed font-sans">{outlook2027}</p>
               </div>
 
               <div className="pt-2 border-t border-slate-800/80 flex flex-col sm:flex-row items-center justify-between gap-4">

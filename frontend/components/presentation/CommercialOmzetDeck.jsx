@@ -19,12 +19,10 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
   const mJson = report?.metricsJson || {};
   const salesType = mJson.salesType || "PROFIT";
 
-  // Ambil hasil Intelligence Analysis dari Backend (jika file Excel di-upload)
-  const intelligenceAnalysis = mJson.intelligenceAnalysis || {};
-  const backendAnomalies = intelligenceAnalysis.anomalies || [];
-  const backendSummary = report?.achievementSummary || intelligenceAnalysis?.summary?.executiveSummary;
+  // Ambil murni dari laporan atau catatan yang diinput user
+  const userSummary = report?.achievementSummary || mJson.achievementSummary || "Belum ada ringkasan pencapaian yang di-input.";
 
-  const totalSlides = 5; // Diperluas mencakup milestone multi-tahun penuh (2024–2027)
+  const totalSlides = 5; // Konsisten 5 slide (2024–2026 riil + Bab Penutup 2027)
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
 
@@ -98,20 +96,20 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
         </div>
       </div>
 
-      {/* VIEWPORT CONTENT (BENTO GRID STYLE - MULTI-YEAR GABUNGAN) */}
+      {/* VIEWPORT CONTENT */}
       <div className="flex-1 p-6 flex flex-col justify-center relative z-10 bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 overflow-hidden">
         
         {/* SLIDE 0: EXECUTIVE MASTER KPI DASHBOARD (2024-2027) */}
         {currentSlide === 0 && (
           <div className="w-full max-w-5xl mx-auto space-y-3 animate-fadeIn font-mono">
             
-            {/* 💡 INTELLIGENCE ENGINE BRIEFING DARI BACKEND */}
-            {backendSummary && (
+            {/* CATATAN / RINGKASAN PENCAPAIAN DARI USER */}
+            {userSummary && (
               <div className="p-3 rounded-xl bg-blue-950/40 border border-blue-500/30 text-xs text-blue-200 flex items-start gap-2.5">
-                <span className="text-base">💡</span>
+                <span className="text-base">📌</span>
                 <div>
-                  <b className="text-blue-300 font-mono block mb-0.5">Intelligence Engine Briefing (Otonom):</b>
-                  <p className="text-slate-200 leading-relaxed font-sans">{backendSummary}</p>
+                  <b className="text-blue-300 font-mono block mb-0.5">Catatan & Ringkasan Laporan Divisi:</b>
+                  <p className="text-slate-200 leading-relaxed font-sans">{userSummary}</p>
                 </div>
               </div>
             )}
@@ -178,20 +176,6 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
               </span>
               <span className="text-[9px] text-slate-400 bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-800">Multi-Year Aggregation</span>
             </div>
-
-            {/* ⚠️ TAMPILKAN PERINGATAN ANOMALI JIKA ADA */}
-            {backendAnomalies.length > 0 && (
-              <div className="p-2.5 bg-amber-950/30 border border-amber-500/40 rounded-xl text-xs text-amber-300 space-y-1">
-                <span className="font-bold flex items-center gap-1">
-                  <AlertTriangle size={13} /> Peringatan Deviasi Kinerja Sales:
-                </span>
-                {backendAnomalies.map((anom, idx) => (
-                  <p key={idx} className="text-[11px] text-slate-200">
-                    • <b>{anom.item}</b>: Target {anom.target}, Aktual {anom.actual} ({anom.achievement}) — <i className="text-amber-200">{anom.recommendation}</i>
-                  </p>
-                ))}
-              </div>
-            )}
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               {targetYears.map(yr => {
@@ -300,7 +284,7 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
           </div>
         )}
 
-        {/* SLIDE 4: FINAL STAGE — STRATEGIC OUTLOOK 2027 */}
+        {/* SLIDE 4: FINAL STAGE — STRATEGIC OUTLOOK 2027 (BAB PENUTUP) */}
         {currentSlide === 4 && (
           <div className="w-full max-w-3xl mx-auto space-y-4 animate-fadeIn text-center font-mono">
             <div className="bg-gradient-to-br from-purple-950/90 via-slate-900 to-slate-950 border border-purple-500/40 p-6 sm:p-8 rounded-3xl shadow-2xl space-y-4">
@@ -309,8 +293,8 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
               </span>
               <h2 className="text-xl font-black text-white">Proyeksi Masa Depan & Fokus Perbaikan 2027</h2>
               <div className="bg-slate-950 p-4 rounded-2xl text-left text-xs text-slate-200 border border-slate-800 shadow-inner">
-                <span className="text-[10px] text-purple-400 font-bold block mb-1 uppercase tracking-wider">Catatan Isu & Fokus Perbaikan 2027:</span>
-                <p className="whitespace-pre-line text-xs text-slate-200 font-sans leading-relaxed">{backendSummary || outlook2027}</p>
+                <span className="text-[10px] text-purple-400 font-bold block mb-1 uppercase tracking-wider">Catatan Isu & Rencana Strategis 2027:</span>
+                <p className="whitespace-pre-line text-xs text-slate-200 font-sans leading-relaxed">{outlook2027}</p>
               </div>
               <button onClick={() => setCurrentSlide(0)} className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 text-slate-950 font-black text-xs uppercase tracking-wider shadow-lg hover:brightness-110 transition cursor-pointer">
                 Restart Presentation
