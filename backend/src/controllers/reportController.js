@@ -14,7 +14,6 @@ async function list(req, res) {
 
     // 2. Filter Plant (Mendukung UUID langsung maupun pencarian nama teks dari session PIC)
     if (plantId && plantId !== "ALL" && plantId !== "semua" && plantId !== "null" && plantId !== "undefined" && plantId !== "") {
-      // Cek apakah plantId yang dikirim adalah UUID valid atau Nama Plant
       const plantCheck = await prisma.plant.findFirst({
         where: {
           OR: [
@@ -115,13 +114,37 @@ async function upsert(req, res) {
     };
 
     if (isValidId) {
-      report = await prisma.report.update({
-        where: { id: String(id) },
-        data,
-      });
+      try {
+        // Coba update langsung berdasarkan ID dokumen yang dikirim
+        report = await prisma.report.update({
+          where: { id: String(id) },
+          data,
+        });
+      } catch (updateErr) {
+        // Fallback pengaman: Jika update ID gagal (misal bentrok unique constraint tahun/plant/divisi), lakukan upsert aman
+        console.warn("Update by ID gagal, mengalihkan ke upsert aman:", updateErr.message);
+        report = await prisma.report.upsert({
+          where: { 
+            year_plantId_departmentId: { 
+              year: yearNum, 
+              plantId: String(plantId), 
+              departmentId: String(departmentId) 
+            } 
+          },
+          update: data,
+          create: data,
+        });
+      }
     } else {
+      // Jika tidak membawa ID, langsung gunakan upsert berdasarkan kombinasi unik tahun, plant, & divisi
       report = await prisma.report.upsert({
-        where: { year_plantId_departmentId: { year: yearNum, plantId: String(plantId), departmentId: String(departmentId) } },
+        where: { 
+          year_plantId_departmentId: { 
+            year: yearNum, 
+            plantId: String(plantId), 
+            departmentId: String(departmentId) 
+          } 
+        },
         update: data,
         create: data,
       });
