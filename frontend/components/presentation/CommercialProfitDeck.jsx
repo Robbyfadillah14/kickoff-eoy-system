@@ -6,7 +6,6 @@ import {
   ShieldCheck, ArrowRightLeft, Flag, CheckCircle, Calendar, User, Package, AlertTriangle
 } from "lucide-react";
 
-// Smart Formatter: Otomatis mendeteksi Rupiah (Miliar / Juta / Ribu) tanpa double 'Jt'
 const formatRupiah = (val) => {
   const num = Number(val || 0);
   if (num === 0) return "Rp 0";
@@ -23,11 +22,11 @@ const formatRupiah = (val) => {
 };
 
 export default function CommercialProfitDeck({ report, allYearlyReports = {} }) {
-  const targetYears = [2024, 2025, 2026, 2027]; 
+  // Tahun historis operasional (2024-2026) dipisah dari Outlook 2027
+  const historicalYears = [2024, 2025, 2026]; 
   const mJson = report?.metricsJson || {};
   const salesType = mJson.salesType || "PROFIT";
 
-  // Ambil murni dari laporan atau catatan ringkasan yang diinput user
   const userSummary = report?.achievementSummary || mJson.achievementSummary || "Belum ada ringkasan pencapaian yang di-input.";
 
   const totalSlides = 5;
@@ -68,15 +67,18 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
 
   let totalAllActual = 0;
   let totalAllTarget = 0;
-  let totalSalesCount = 0;
-
-  targetYears.forEach(yr => {
+  
+  // Ambil daftar nama sales unik yang aktif di tahun historis
+  const activeSalesNames = new Set();
+  historicalYears.forEach(yr => {
     const rep = getReportForYear(yr);
     if (rep) {
       const sList = rep?.metricsJson?.salesPerformances || rep?.salesPerformances || [];
       totalAllActual += sList.reduce((acc, s) => acc + Number(s.actualVal || 0), 0);
       totalAllTarget += sList.reduce((acc, s) => acc + Number(s.targetProfit || s.targetVal || 0), 0);
-      totalSalesCount += sList.length;
+      sList.forEach(s => {
+        if (s.salesName) activeSalesNames.add(s.salesName.trim());
+      });
     }
   });
 
@@ -102,16 +104,10 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
             Slide <span className="text-emerald-400 font-bold">{currentSlide + 1}</span> / {totalSlides}
           </span>
           <div className="flex items-center gap-1 bg-slate-800/80 rounded-xl p-1 border border-slate-700/60">
-            <button
-              onClick={() => setIsPlaying(!isPlaying)}
-              className="p-1.5 hover:bg-slate-700 rounded-lg text-slate-300 hover:text-white transition cursor-pointer"
-            >
+            <button onClick={() => setIsPlaying(!isPlaying)} className="p-1.5 hover:bg-slate-700 rounded-lg text-slate-300 hover:text-white transition cursor-pointer">
               {isPlaying ? <Pause size={15} className="text-emerald-400" /> : <Play size={15} />}
             </button>
-            <button
-              onClick={() => setCurrentSlide(0)}
-              className="p-1.5 hover:bg-slate-700 rounded-lg text-slate-300 hover:text-white transition cursor-pointer"
-            >
+            <button onClick={() => setCurrentSlide(0)} className="p-1.5 hover:bg-slate-700 rounded-lg text-slate-300 hover:text-white transition cursor-pointer">
               <RotateCcw size={15} />
             </button>
           </div>
@@ -121,11 +117,10 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
       {/* 2. Slide Content Viewport */}
       <div className="flex-1 p-6 flex flex-col justify-center relative z-10 bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
         
-        {/* SLIDE 0: DASHBOARD UTAMA (2024-2027) */}
+        {/* SLIDE 0: DASHBOARD UTAMA (2024-2026) */}
         {currentSlide === 0 && (
           <div className="w-full space-y-4 animate-fadeIn">
             
-            {/* 📌 CATATAN / RINGKASAN LAPORAN MURNI DARI USER */}
             {userSummary && (
               <div className="p-3.5 rounded-xl bg-blue-950/40 border border-blue-500/30 text-xs text-blue-200 flex items-start gap-2.5">
                 <span className="text-base">📌</span>
@@ -140,8 +135,8 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
               <div className="bg-slate-900/80 border border-cyan-500/20 p-4 rounded-2xl shadow-xl flex items-center justify-between relative overflow-hidden backdrop-blur-sm">
                 <div className="absolute top-0 left-0 w-1.5 h-full bg-cyan-500"></div>
                 <div className="space-y-1 pl-2">
-                  <span className="text-[10px] font-mono text-cyan-400 uppercase tracking-widest block font-bold">TOTAL PERSONEL SALES</span>
-                  <div className="text-3xl font-black text-white font-mono">{totalSalesCount} <span className="text-xs font-normal text-slate-400">Entri</span></div>
+                  <span className="text-[10px] font-mono text-cyan-400 uppercase tracking-widest block font-bold">PERSONEL SALES AKTIF</span>
+                  <div className="text-2xl font-black text-white font-mono">{activeSalesNames.size} <span className="text-xs font-normal text-slate-400">Orang</span></div>
                 </div>
                 <div className="w-12 h-12 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 flex items-center justify-center font-bold">
                   <Target size={24} />
@@ -151,8 +146,8 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
               <div className="bg-slate-900/80 border border-emerald-500/20 p-4 rounded-2xl shadow-xl flex items-center justify-between relative overflow-hidden backdrop-blur-sm">
                 <div className="absolute top-0 left-0 w-1.5 h-full bg-emerald-500"></div>
                 <div className="space-y-1 pl-2">
-                  <span className="text-[10px] font-mono text-emerald-400 uppercase tracking-widest block font-bold">TOTAL REVENUE (24-27)</span>
-                  <div className="text-2xl font-black text-emerald-400 font-mono">
+                  <span className="text-[10px] font-mono text-emerald-400 uppercase tracking-widest block font-bold">TOTAL REVENUE (24-26)</span>
+                  <div className="text-xl font-black text-emerald-400 font-mono">
                     {formatRupiah(totalAllActual)}
                   </div>
                 </div>
@@ -164,8 +159,8 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
               <div className="bg-slate-900/80 border border-indigo-500/20 p-4 rounded-2xl shadow-xl flex items-center justify-between relative overflow-hidden backdrop-blur-sm">
                 <div className="absolute top-0 left-0 w-1.5 h-full bg-indigo-500"></div>
                 <div className="space-y-1 pl-2">
-                  <span className="text-[10px] font-mono text-indigo-400 uppercase tracking-widest block font-bold">TOTAL TARGET (24-27)</span>
-                  <div className="text-2xl font-black text-indigo-400 font-mono">
+                  <span className="text-[10px] font-mono text-indigo-400 uppercase tracking-widest block font-bold">TOTAL TARGET (24-26)</span>
+                  <div className="text-xl font-black text-indigo-400 font-mono">
                     {formatRupiah(totalAllTarget)}
                   </div>
                 </div>
@@ -179,12 +174,12 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
               <div className="md:col-span-8 bg-slate-900/60 border border-slate-800 p-5 rounded-2xl shadow-xl space-y-4">
                 <div className="flex justify-between items-center border-b border-slate-800/80 pb-3">
                   <span className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
-                    <BarChart3 size={16} className="text-emerald-400" /> Multi-Year Performance Progress (2024 - 2027)
+                    <BarChart3 size={16} className="text-emerald-400" /> Komparasi Progres Historis (2024 - 2026)
                   </span>
-                  <span className="text-[10px] text-emerald-400 font-mono bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20 font-bold">Integrated Chart</span>
+                  <span className="text-[10px] text-emerald-400 font-mono bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20 font-bold">Core Years</span>
                 </div>
                 <div className="space-y-3 pt-1">
-                  {targetYears.map((yr) => {
+                  {historicalYears.map((yr) => {
                     const rep = getReportForYear(yr);
                     const sList = rep ? (rep?.metricsJson?.salesPerformances || rep?.salesPerformances || []) : [];
                     const totAct = sList.reduce((acc, s) => acc + Number(s.actualVal || 0), 0);
@@ -232,13 +227,13 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
                 <div className="grid grid-cols-2 gap-3 text-center font-mono">
                   <div className="bg-slate-950/80 p-3.5 rounded-xl border border-slate-800/80 shadow-inner">
                     <span className="text-3xl font-black text-white">
-                      {targetYears.filter(yr => getReportForYear(yr) !== null).length}
+                      {historicalYears.filter(yr => getReportForYear(yr) !== null).length}
                     </span>
-                    <span className="text-[10px] text-slate-400 block mt-1 font-semibold">Tahun Aktif</span>
+                    <span className="text-[10px] text-slate-400 block mt-1 font-semibold">Tahun Historis</span>
                   </div>
                   <div className="bg-slate-950/80 p-3.5 rounded-xl border border-slate-800/80 shadow-inner">
-                    <span className="text-lg font-extrabold text-emerald-400 truncate block">{salesType}</span>
-                    <span className="text-[10px] text-slate-400 block mt-1 font-semibold">Strategi Utama</span>
+                    <span className="text-sm font-extrabold text-emerald-400 truncate block pt-1">{salesType}</span>
+                    <span className="text-[10px] text-slate-400 block mt-1 font-semibold">Orientasi</span>
                   </div>
                 </div>
                 <div className="bg-emerald-500/10 border border-emerald-500/20 p-3 rounded-xl flex items-center gap-2.5 text-xs text-emerald-300 font-medium">
@@ -250,7 +245,7 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
           </div>
         )}
 
-        {/* SLIDE 1: GRAFIK PERFORMA LINTAS TAHUN (2024-2027) */}
+        {/* SLIDE 1: GRAFIK PERFORMA HISTORIS (2024-2026) */}
         {currentSlide === 1 && (
           <div className="w-full max-w-5xl mx-auto space-y-4 animate-fadeIn">
             <div className="bg-slate-900/90 border border-slate-800 p-6 rounded-3xl shadow-2xl relative overflow-hidden backdrop-blur-md space-y-6">
@@ -259,25 +254,25 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
               <div className="flex justify-between items-center border-b border-slate-800 pb-3">
                 <div className="space-y-0.5">
                   <span className="text-xs font-mono font-bold text-emerald-400 flex items-center gap-1.5 uppercase tracking-wider">
-                    <Flag size={15} /> ANALISIS PERFORMA TIM SALES LINTAS TAHUN (2024 — 2027)
+                    <Flag size={15} /> ANALISIS PERFORMA TIM SALES (2024 — 2026)
                   </span>
                   <p className="text-[11px] text-slate-400 font-sans">
-                    Rekapitulasi progres performa komersial terintegrasi dalam satu grafik batang vertikal multi-tahun.
+                    Grafik perbandingan pencapaian target komersial murni pada tahun-tahun operasional berjalan.
                   </p>
                 </div>
                 <span className="text-[10px] font-mono bg-emerald-500/10 text-emerald-400 px-3 py-1 rounded-full border border-emerald-500/30 font-bold">
-                  Enterprise View
+                  Historical View
                 </span>
               </div>
 
               <div className="bg-slate-950 p-6 rounded-2xl border border-slate-800/80 shadow-inner space-y-4 font-mono">
                 <div className="flex justify-between items-center text-xs border-b border-slate-900 pb-2">
-                  <span className="text-slate-400 font-bold">Grafik Batang Performa Lintas Tahun</span>
+                  <span className="text-slate-400 font-bold">Grafik Batang Performa Historis</span>
                   <span className="text-emerald-400 font-bold">Realisasi vs Target (%)</span>
                 </div>
 
-                <div className="grid grid-cols-4 gap-4 pt-4 px-2 h-[170px] items-end border-b border-slate-900 pb-6">
-                  {targetYears.map((yr) => {
+                <div className="grid grid-cols-3 gap-6 pt-4 px-6 h-[180px] items-end border-b border-slate-900 pb-6">
+                  {historicalYears.map((yr) => {
                     const rep = getReportForYear(yr);
                     const sList = rep ? (rep?.metricsJson?.salesPerformances || rep?.salesPerformances || []) : [];
                     
@@ -288,9 +283,9 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
 
                     return (
                       <div key={yr} className="flex flex-col items-center gap-2 h-full justify-end group">
-                        <span className="text-[11px] font-bold text-emerald-400">{rep ? `${ratio}%` : "N/A"}</span>
+                        <span className="text-xs font-bold text-emerald-400">{rep ? `${ratio}%` : "N/A"}</span>
                         
-                        <div className="w-16 bg-slate-900 rounded-t-xl h-[100px] flex items-end p-1 border border-slate-800 shadow-xl">
+                        <div className="w-20 bg-slate-900 rounded-t-xl h-[110px] flex items-end p-1.5 border border-slate-800 shadow-xl">
                           {rep ? (
                             <div 
                               className={`w-full rounded-t-lg transition-all duration-700 ${isOk ? 'bg-gradient-to-t from-emerald-600 to-teal-400 shadow-md shadow-emerald-500/30' : 'bg-gradient-to-t from-amber-600 to-amber-400'}`}
@@ -303,7 +298,7 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
                         
                         <div className="text-center">
                           <span className="text-xs font-bold text-white block">Tahun {yr}</span>
-                          <span className="text-[9px] text-slate-400 block">{rep ? formatRupiah(totAct) : "Belum ada data"}</span>
+                          <span className="text-[10px] text-slate-400 block">{rep ? formatRupiah(totAct) : "Belum ada data"}</span>
                         </div>
                       </div>
                     );
@@ -312,18 +307,18 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
 
                 <div className="flex justify-between items-center text-[11px] text-slate-400 pt-1">
                   <span>Status Sistem: <b className="text-emerald-400">Sinkronisasi Real-time Terhubung</b></span>
-                  <span className="text-slate-500 font-bold">2024 — 2027</span>
+                  <span className="text-slate-500 font-bold">2024 — 2026</span>
                 </div>
               </div>
             </div>
           </div>
         )}
 
-        {/* SLIDE 2: KATEGORI PRODUK (2024-2027) */}
+        {/* SLIDE 2: KATEGORI PRODUK (2024-2026) */}
         {currentSlide === 2 && (
-          <div className="w-full space-y-4 animate-fadeIn">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {targetYears.map((yr) => {
+          <div className="w-full max-w-5xl mx-auto space-y-4 animate-fadeIn">
+            <div className="grid grid-cols-3 gap-4">
+              {historicalYears.map((yr) => {
                 const rep = getReportForYear(yr);
                 const metrics = rep ? (rep?.metricsJson || rep || {}) : {};
                 const sList = metrics.salesPerformances || [];
@@ -348,37 +343,37 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
                 const topProd = allProductsForYear.length > 0 ? allProductsForYear[0] : null;
 
                 return (
-                  <div key={yr} className="bg-slate-900/70 border border-slate-800/80 p-3.5 rounded-2xl space-y-3 shadow-xl relative overflow-hidden flex flex-col justify-between h-[360px] backdrop-blur-sm">
+                  <div key={yr} className="bg-slate-900/70 border border-slate-800/80 p-4 rounded-2xl space-y-3 shadow-xl relative overflow-hidden flex flex-col justify-between h-[360px] backdrop-blur-sm">
                     <div className="absolute top-0 left-0 w-full h-1 bg-cyan-500"></div>
                     <div className="flex justify-between items-center text-xs font-mono font-bold text-slate-200 border-b border-slate-800 pb-2">
-                      <span className="flex items-center gap-1"><ArrowRightLeft size={13} className="text-cyan-400" /> PRODUK {yr}</span>
-                      <span className="text-[9px] bg-cyan-950 text-cyan-400 px-2 py-0.5 rounded border border-cyan-500/30 font-bold">
+                      <span className="flex items-center gap-1"><ArrowRightLeft size={13} className="text-cyan-400" /> PRODUK TAHUN {yr}</span>
+                      <span className="text-[10px] bg-cyan-950 text-cyan-400 px-2 py-0.5 rounded border border-cyan-500/30 font-bold">
                         {totalProdCount} Item
                       </span>
                     </div>
 
                     <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-center font-mono shadow-inner">
                       <span className="text-2xl font-black text-cyan-400">{totalProdCount}</span>
-                      <span className="text-[9px] text-slate-400 block mt-0.5">Total Produk Terdaftar</span>
+                      <span className="text-[10px] text-slate-400 block mt-0.5">Total Produk Terdaftar</span>
                     </div>
 
-                    <div className="flex-1 bg-slate-950/90 p-3 rounded-xl border border-slate-800/80 flex flex-col justify-center font-mono space-y-2">
+                    <div className="flex-1 bg-slate-950/90 p-3.5 rounded-xl border border-slate-800/80 flex flex-col justify-center font-mono space-y-2">
                       <span className="text-[10px] text-slate-400 font-bold block text-center">Top Produk Unggulan:</span>
                       {topProd ? (
-                        <div className="text-center space-y-1 bg-slate-900 p-2.5 rounded-lg border border-slate-800">
+                        <div className="text-center space-y-1 bg-slate-900 p-3 rounded-lg border border-slate-800">
                           <span className="text-xs font-bold text-white block truncate">{topProd.productName}</span>
-                          <span className="text-[10px] text-emerald-400 font-bold block">{formatRupiah(topProd.category || topProd.actualVal)}</span>
+                          <span className="text-[11px] text-emerald-400 font-bold block">{formatRupiah(topProd.category || topProd.actualVal)}</span>
                         </div>
                       ) : (
-                        <div className="text-slate-500 text-[11px] italic text-center py-4">
+                        <div className="text-slate-500 text-xs italic text-center py-6">
                           Belum ada data produk.
                         </div>
                       )}
                     </div>
 
-                    <div className="bg-slate-950 p-2 rounded-xl border border-slate-800 flex items-center justify-between text-[10px] font-mono text-slate-400">
+                    <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800 flex items-center justify-between text-xs font-mono text-slate-400">
                       <span>Status: <b className="text-cyan-400">{rep ? "Aktif" : "Kosong"}</b></span>
-                      <span className="text-slate-500 font-bold">Thn {yr}</span>
+                      <span className="text-slate-500 font-bold">Tahun {yr}</span>
                     </div>
                   </div>
                 );
@@ -387,11 +382,11 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
           </div>
         )}
 
-        {/* SLIDE 3: TEROBOSAN & INOVASI MODERN GRID LAYOUT (2024-2027) */}
+        {/* SLIDE 3: TEROBOSAN & INOVASI (2024-2026) */}
         {currentSlide === 3 && (
-          <div className="w-full space-y-4 animate-fadeIn">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {targetYears.map((yr) => {
+          <div className="w-full max-w-5xl mx-auto space-y-4 animate-fadeIn">
+            <div className="grid grid-cols-3 gap-4">
+              {historicalYears.map((yr) => {
                 const rep = getReportForYear(yr);
                 const metrics = rep ? (rep?.metricsJson || rep || {}) : {};
                 const innovations = rep ? (rep?.branchInnovations || metrics.branchInnovations || "") : "";
@@ -405,23 +400,23 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
                         <div className="w-6 h-6 rounded-lg bg-purple-500/20 text-purple-300 flex items-center justify-center font-bold">
                           <Zap size={14} />
                         </div>
-                        <span className="text-xs font-mono font-bold text-white">INOVASI {yr}</span>
+                        <span className="text-xs font-mono font-bold text-white">INOVASI TAHUN {yr}</span>
                       </div>
-                      <span className="text-[8px] bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded-full border border-purple-500/30 font-bold uppercase tracking-wider">
+                      <span className="text-[9px] bg-purple-500/20 text-purple-300 px-2.5 py-0.5 rounded-full border border-purple-500/30 font-bold uppercase tracking-wider">
                         Strategy
                       </span>
                     </div>
 
-                    <div className="flex-1 overflow-y-auto bg-slate-950/80 p-3 rounded-xl border border-slate-800 text-xs font-mono text-slate-200 leading-relaxed custom-scrollbar shadow-inner flex flex-col">
-                      <span className="text-[9px] font-bold text-purple-400 block mb-1 uppercase tracking-wider flex items-center gap-1">
-                        <Sparkles size={11} /> Catatan Terobosan:
+                    <div className="flex-1 overflow-y-auto bg-slate-950/80 p-3.5 rounded-xl border border-slate-800 text-xs font-mono text-slate-200 leading-relaxed custom-scrollbar shadow-inner flex flex-col">
+                      <span className="text-[10px] font-bold text-purple-400 block mb-1.5 uppercase tracking-wider flex items-center gap-1">
+                        <Sparkles size={12} /> Catatan Terobosan:
                       </span>
-                      <p className="whitespace-pre-line text-slate-300 text-[11px] leading-relaxed italic font-sans">
+                      <p className="whitespace-pre-line text-slate-300 text-xs leading-relaxed italic font-sans">
                         {rep ? (innovations || "Belum ada catatan inovasi atau terobosan strategis untuk tahun ini.") : "Belum ada data laporan untuk tahun ini."}
                       </p>
                     </div>
 
-                    <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono pt-1">
+                    <div className="flex items-center justify-between text-xs text-slate-400 font-mono pt-1">
                       <span>Status: <b className="text-emerald-400">{rep ? "Logged" : "-"}</b></span>
                       <span className="text-purple-400 font-semibold">Tahun {yr}</span>
                     </div>
@@ -432,7 +427,7 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
           </div>
         )}
 
-        {/* SLIDE 4: BAB PENUTUP — STRATEGIC OUTLOOK 2027 */}
+        {/* SLIDE 4: BAB PENUTUP KHUSUS — STRATEGIC OUTLOOK 2027 */}
         {currentSlide === 4 && (
           <div className="w-full max-w-4xl mx-auto space-y-6 animate-fadeIn text-center">
             <div className="bg-gradient-to-br from-purple-950/80 via-slate-900 to-slate-950 border border-purple-500/40 p-8 sm:p-10 rounded-3xl shadow-2xl space-y-6 relative overflow-hidden backdrop-blur-md">
@@ -443,14 +438,14 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
               </div>
 
               <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-                Proyeksi Masa Depan & Strategi Utama 2027
+                Proyeksi Masa Depan & Fokus Inovasi 2027
               </h2>
 
               <div className="bg-slate-900/90 border border-purple-500/30 p-6 rounded-2xl text-left text-xs font-mono text-slate-200 shadow-inner leading-relaxed min-h-[140px] flex flex-col justify-center">
                 <span className="text-[10px] text-purple-400 font-bold block mb-2 uppercase tracking-wider flex items-center gap-1.5">
                   <Zap size={14} /> Catatan Isu & Fokus Perbaikan 2027:
                 </span>
-                <p className="whitespace-pre-line text-sm text-slate-200 leading-relaxed font-sans">{outlook2027}</p>
+                <p className="whitespace-pre-line text-sm text-slate-200 leading-relaxed font-sans">{backendSummary || outlook2027}</p>
               </div>
 
               <div className="pt-2 border-t border-slate-800/80 flex flex-col sm:flex-row items-center justify-between gap-4">
@@ -485,7 +480,7 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
         </button>
 
         <div className="flex items-center gap-2">
-          {["Dashboard 2024–2027", "Performa & Target Sales", "Kategori Produk", "Inovasi Komersial", "Outlook 2027"].map((label, idx) => (
+          {["Dashboard 24–26", "Performa & Target", "Kategori Produk", "Inovasi Komersial", "Outlook 2027"].map((label, idx) => (
             <button
               key={idx}
               onClick={() => setCurrentSlide(idx)}
