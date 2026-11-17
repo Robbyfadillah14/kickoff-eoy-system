@@ -4,14 +4,6 @@ import { apiFetch } from "../../lib/api";
 import { getSocket } from "../../lib/socket";
 import { BrandLogo } from "../../components/Branding";
 
-// Impor seluruh komponen Deck Departemen yang sudah kita buat
-import CommercialProfitDeck from "../../components/presentation/CommercialProfitDeck";
-import CommercialOmzetDeck from "../../components/presentation/CommercialOmzetDeck";
-import DigitalMarketingDeck from "../../components/presentation/DigitalMarketingDeck";
-import FinancialDeck from "../../components/presentation/FinancialDeck";
-import OperationalHospitalityDeck from "../../components/presentation/OperationalHospitalityDeck";
-import ProductDevelopmentDeck from "../../components/presentation/ProductDevelopmentDeck";
-
 export default function DashboardPage() {
   const [user, setUser] = useState(null);
   
@@ -30,7 +22,6 @@ export default function DashboardPage() {
   const [departments, setDepartments] = useState([]);
   const [departmentId, setDepartmentId] = useState("");
   const [reports, setReports] = useState([]);
-  const [allYearlyReports, setAllYearlyReports] = useState({});
 
   // State untuk Modal Live Q&A
   const [isQaOpen, setIsQaOpen] = useState(false);
@@ -59,22 +50,6 @@ export default function DashboardPage() {
         console.error("Gagal memuat data plants:", err);
         setPlants([]);
       });
-
-    // Ambil rekapitulasi lintas tahun (2024-2027) untuk fitur multi-year di deck
-    const years = [2024, 2025, 2026, 2027];
-    Promise.all(
-      years.map((yr) =>
-        apiFetch(`/api/reports?year=${yr}`)
-          .then((res) => ({ yr, data: Array.isArray(res) ? res : res?.data || res?.reports || [] }))
-          .catch(() => ({ yr, data: [] }))
-      )
-    ).then((results) => {
-      const yearlyMap = {};
-      results.forEach(({ yr, data }) => {
-        yearlyMap[yr] = data;
-      });
-      setAllYearlyReports(yearlyMap);
-    });
   }, []);
 
   // 2. Ambil data master departments
@@ -185,28 +160,6 @@ export default function DashboardPage() {
       setIsQaOpen(false);
     }, 2000);
   }
-
-  // Fungsi pintar untuk merender Deck interaktif sesuai nama departemen laporan
-  const renderDepartmentDeck = (report) => {
-    const deptName = (report?.department?.name || "").toLowerCase();
-    const salesType = report?.metricsJson?.salesType || "PROFIT";
-
-    if (deptName.includes("marketing") || deptName.includes("digital")) {
-      return <DigitalMarketingDeck report={report} allYearlyReports={allYearlyReports} />;
-    } else if (deptName.includes("finance") || deptName.includes("tax") || deptName.includes("accounting")) {
-      return <FinancialDeck report={report} allYearlyReports={allYearlyReports} />;
-    } else if (deptName.includes("product") || deptName.includes("r&d") || deptName.includes("development")) {
-      return <ProductDevelopmentDeck report={report} allYearlyReports={allYearlyReports} />;
-    } else if (deptName.includes("operational") || deptName.includes("logistic") || deptName.includes("supply")) {
-      return <OperationalHospitalityDeck report={report} allYearlyReports={allYearlyReports} />;
-    } else {
-      return salesType === "OMZET" ? (
-        <CommercialOmzetDeck report={report} allYearlyReports={allYearlyReports} />
-      ) : (
-        <CommercialProfitDeck report={report} allYearlyReports={allYearlyReports} />
-      );
-    }
-  };
 
   if (!user) return <div className="min-h-screen bg-[#0d1117] p-4 text-slate-400 text-sm flex items-center justify-center">Memuat sesi pengguna...</div>;
 
@@ -357,8 +310,8 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* REPORTS DECK & GRID CARDS */}
-      <div className="space-y-6">
+      {/* REPORTS GRID CARDS */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
         {filteredReports.map((r) => {
           let performances = [];
           try {
@@ -371,71 +324,77 @@ export default function DashboardPage() {
           return (
             <div 
               key={r.id} 
-              className="group bg-slate-900/90 border border-slate-800/80 hover:border-cyan-500/50 rounded-3xl p-4 sm:p-6 space-y-5 flex flex-col justify-between relative transition-all duration-300 shadow-2xl overflow-hidden"
+              className="group bg-slate-900/90 border border-slate-800/80 hover:border-cyan-500/50 rounded-2xl p-4 sm:p-5 space-y-4 flex flex-col justify-between relative transition-all duration-300 shadow-lg"
             >
-              {/* HEADER KARTU LAPORAN */}
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-800 pb-4">
-                <div className="flex items-center gap-3">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-cyan-400 bg-cyan-950/50 border border-cyan-900/60 px-3 py-1 rounded-xl">
-                    🏢 {r.plant?.name} · {r.department?.name}
+              <div className="space-y-3">
+                <div className="flex justify-between items-center gap-2">
+                  <span className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-cyan-400 bg-cyan-950/50 border border-cyan-900/60 px-2.5 py-1 rounded-md truncate">
+                    {r.plant?.name} · {r.department?.name}
                   </span>
-                  <span className="text-xs font-bold text-purple-400 bg-purple-950/60 border border-purple-500/20 px-3 py-1 rounded-xl font-mono">
-                    📅 Tahun {r.year}
+                  <span className="text-xs font-bold text-purple-400 bg-purple-950/60 border border-purple-500/20 px-2.5 py-0.5 rounded shrink-0 font-mono">
+                    {r.year} ({r.year === 2024 ? "Run" : r.year === 2025 ? "Grow" : "Transform"})
                   </span>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <button
+                <div>
+                  <h3 className="text-sm sm:text-base font-bold text-white tracking-tight">
+                    Laporan Kinerja Tahunan
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5 line-clamp-2">
+                    {r.achievementSummary || "Data operasional dan performa telah disinkronkan dengan kerangka strategis."}
+                  </p>
+                </div>
+
+                <div className="bg-slate-950/80 border border-slate-800/80 rounded-xl p-3 space-y-2.5 text-xs font-mono">
+                  <div className="flex items-center justify-between text-[10px] text-slate-400 border-b border-slate-900 pb-1.5">
+                    <span className="text-emerald-400 font-bold uppercase tracking-wider">⚡ Status Sistem:</span>
+                    <span className="text-cyan-400 font-bold">{performances.length} Item Data Siap</span>
+                  </div>
+
+                  <p className="text-[11px] text-slate-300 leading-relaxed font-sans">
+                    Tervalidasi aman di bawah pilar strategis {r.year === 2024 ? "Run (Stabilitas)" : r.year === 2025 ? "Grow (Ekspansi)" : "Transform (Digitalisasi)"}.
+                  </p>
+
+                  <button 
                     type="button"
                     onClick={() => setSelectedReportDetail(r)}
-                    className="text-xs bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 text-cyan-300 px-3.5 py-1.5 rounded-xl font-semibold transition cursor-pointer flex items-center gap-1.5"
+                    className="w-full py-2.5 bg-gradient-to-r from-cyan-500/20 to-blue-500/20 hover:from-cyan-500/30 hover:to-blue-500/30 border border-cyan-500/40 text-cyan-300 font-sans font-bold text-xs rounded-xl transition flex items-center justify-center gap-2 cursor-pointer shadow-sm"
                   >
-                    <span>🤖</span> Runtutan & Analisis ({performances.length} Poin)
+                    <span>🤖</span> Cek Poin & Penjelasan Sistem ({performances.length} Poin)
                   </button>
                 </div>
               </div>
 
-              {/* RENDER DECK INTERAKTIF SESUAI DEPARTEMEN */}
-              <div className="w-full relative shadow-xl rounded-2xl overflow-hidden border border-slate-800">
-                {renderDepartmentDeck(r)}
-              </div>
+              {/* TOMBOL AKSI CEPAT */}
+              <div className="flex items-center gap-2 pt-3 border-t border-slate-800/80">
+                <a 
+                  href={`/report?id=${r.id}`}
+                  className="flex-1 text-center py-2.5 sm:py-2 bg-slate-800/80 hover:bg-cyan-500 hover:text-slate-950 text-slate-200 text-xs font-semibold rounded-xl transition shadow-sm flex items-center justify-center gap-1.5"
+                >
+                  <span>✏️</span> Edit Data
+                </a>
+                <button 
+                  type="button"
+                  onClick={async (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    const confirmed = window.confirm(`Yakin ingin menghapus laporan ID: ${r.id} secara permanen?`);
+                    if (!confirmed) return;
 
-              {/* TOMBOL AKSI CEPAT (EDIT & HAPUS AMAN) */}
-              <div className="flex items-center justify-between gap-3 pt-3 border-t border-slate-800/80">
-                <span className="text-xs font-mono text-slate-400">
-                  ID Dokumen: <b className="text-cyan-400">{r.id}</b>
-                </span>
-
-                <div className="flex items-center gap-2">
-                  <a
-                    href={`/report?id=${r.id}`}
-                    className="px-4 py-2 bg-slate-800/80 hover:bg-slate-700 text-amber-400 border border-amber-500/30 text-xs font-bold rounded-xl transition shadow-sm flex items-center gap-1.5"
-                  >
-                    <span>✏️</span> Edit Data
-                  </a>
-                  <button
-                    type="button"
-                    onClick={async (e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      
-                      const confirmed = window.confirm(`Yakin ingin menghapus laporan ID: ${r.id} secara permanen?`);
-                      if (!confirmed) return;
-
-                      try {
-                        await apiFetch(`/api/reports/${r.id}`, { method: "DELETE" });
-                        alert("Laporan berhasil dihapus!");
-                        window.location.reload();
-                      } catch (error) {
-                        console.error("Kesalahan jaringan saat menghapus:", error);
-                        alert("Gagal menghapus laporan: " + error.message);
-                      }
-                    }}
-                    className="px-3.5 py-2 bg-red-500/10 hover:bg-red-600 text-red-400 hover:text-white text-xs font-bold rounded-xl transition border border-red-500/20 shadow-sm cursor-pointer flex items-center gap-1"
-                  >
-                    <span>🗑️</span> Hapus
-                  </button>
-                </div>
+                    try {
+                      await apiFetch(`/api/reports/${r.id}`, { method: "DELETE" });
+                      alert("Laporan berhasil dihapus!");
+                      window.location.reload();
+                    } catch (error) {
+                      console.error("Kesalahan jaringan saat menghapus:", error);
+                      alert("Gagal menghapus laporan: " + error.message);
+                    }
+                  }}
+                  className="px-3.5 py-2.5 sm:py-2 bg-red-500/10 hover:bg-red-600 text-red-400 hover:text-white text-xs font-bold rounded-xl transition text-center border border-red-500/20 shadow-sm cursor-pointer flex items-center justify-center gap-1 relative z-20"
+                >
+                  <span>🗑️</span>
+                </button>
               </div>
             </div>
           );
