@@ -11,6 +11,8 @@ export default function SalesForm({ form, setForm }) {
   const [inputMode, setInputMode] = useState("EXCEL");
 
   const rows = form.salesPerformances || [];
+  const currentYear = Number(form.year || 2024);
+  const prevYear = currentYear - 1;
 
   // Handler Upload & Parse File Excel Fleksibel
   const handleExcelUpload = (e) => {
@@ -116,13 +118,9 @@ export default function SalesForm({ form, setForm }) {
         </div>
       </div>
 
-      {/* ---------------------------------------------------- */}
-      {/* JIKA PILIH MODE EXCEL: TAMPILKAN BANNER PANDUAN & UPLOADER */}
-      {/* ---------------------------------------------------- */}
+      {/* JIKA PILIH MODE EXCEL */}
       {inputMode === "EXCEL" && (
         <div className="space-y-4">
-          
-          {/* BANNER PEMBERITAHUAN & PANDUAN FLEKSIBEL EXCEL */}
           <div className="bg-gradient-to-r from-amber-950/40 via-slate-900 to-slate-900 border border-amber-500/40 rounded-2xl p-4 sm:p-5 space-y-3 shadow-lg">
             <div className="flex items-start gap-3">
               <div className="p-2 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-400 text-base shrink-0 mt-0.5">
@@ -130,10 +128,10 @@ export default function SalesForm({ form, setForm }) {
               </div>
               <div className="space-y-1.5 flex-1">
                 <h4 className="text-xs sm:text-sm font-bold text-amber-300 tracking-tight">
-                  Panduan Pengunggahan Data Laporan Sales
+                  Panduan Pengunggahan Data Laporan Sales ({currentYear})
                 </h4>
                 <p className="text-xs text-slate-300 leading-relaxed">
-                  Silakan unggah file Excel laporan kerja sales per unit (EIISBY, EAM, Cikarang). Sistem akan otomatis membaca target, omset/profit aktual, serta item brand untuk disajikan di live presentation Kick Off Meeting 2026.
+                  Silakan unggah file Excel laporan kerja sales per unit (EIISBY, EAM, Cikarang). Sistem akan otomatis membaca target, omset/profit aktual, serta item brand untuk disajikan di live presentation Kick Off Meeting {currentYear}.
                 </p>
               </div>
             </div>
@@ -142,7 +140,7 @@ export default function SalesForm({ form, setForm }) {
               <button
                 type="button"
                 onClick={() => {
-                  alert("Panduan Format Excel:\nPastikan file Excel berisi data rekapitulasi Sales / Brand (Kolom 1: Nama Sales/Brand, Kolom 2: Target 2025/2026, Kolom 3: Realisasi Penjualan/Profit, Kolom 4: Keterangan/Ach %).\nSistem akan otomatis membaca data untuk Live Deck.");
+                  alert(`Panduan Format Excel:\nPastikan file Excel berisi data rekapitulasi Sales / Brand (Kolom 1: Nama Sales/Brand, Kolom 2: Target ${currentYear}, Kolom 3: Realisasi Penjualan/Profit, Kolom 4: Keterangan/Ach %).\nSistem akan otomatis membaca data untuk Live Deck.`);
                 }}
                 className="text-[11px] bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-400 font-semibold px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 cursor-pointer"
               >
@@ -151,7 +149,6 @@ export default function SalesForm({ form, setForm }) {
             </div>
           </div>
 
-          {/* SECTION UPLOAD EXCEL UTAMA */}
           <section className="bg-slate-900 border border-emerald-500/40 p-5 rounded-xl space-y-4 shadow-xl">
             <div className="flex flex-wrap justify-between items-center gap-3">
               <div className="flex items-center gap-3">
@@ -190,7 +187,6 @@ export default function SalesForm({ form, setForm }) {
                   )}
                 </div>
 
-                {/* PREVIEW HASIL PARSE EXCEL */}
                 <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-3">
                   <div className="flex justify-between items-center">
                     <span className="text-xs font-bold text-emerald-400 flex items-center gap-1.5 uppercase tracking-wider">
@@ -236,12 +232,9 @@ export default function SalesForm({ form, setForm }) {
         </div>
       )}
 
-      {/* ---------------------------------------------------- */}
-      {/* JIKA PILIH MODE MANUAL: TAMPILKAN FORM LENGKAP + TOP PRODUK */}
-      {/* ---------------------------------------------------- */}
+      {/* JIKA PILIH MODE MANUAL */}
       {inputMode === "MANUAL" && (
         <div className="space-y-6 animate-fadeIn">
-          {/* 1. PILIHAN FOKUS STRATEGI TARGET */}
           <section className="bg-card border border-accent/40 rounded-xl p-4 space-y-2.5">
             <h2 className="font-semibold text-sm text-accent">Fokus Strategi Target Komersial:</h2>
             <div className="flex gap-4">
@@ -268,7 +261,6 @@ export default function SalesForm({ form, setForm }) {
             </div>
           </section>
 
-          {/* 2. RINCIAN PERFORMA & TARGET PER SALES */}
           <section className="bg-card border border-accent/40 rounded-xl p-4 space-y-4">
             <div className="flex justify-between items-center">
               <div>
@@ -351,7 +343,7 @@ export default function SalesForm({ form, setForm }) {
                             updated[idx].targetVal = val;
                             setForm({ ...form, salesPerformances: updated });
                           }} 
-                          placeholder="Contoh: 4800000000 (Martha) / 5300000000 (Jimmy)" 
+                          placeholder="Contoh: 4800000000" 
                           className="w-full bg-bg border border-line rounded px-2.5 py-1 text-white font-mono focus:outline-none focus:border-accent" 
                         />
                       </div>
@@ -367,7 +359,7 @@ export default function SalesForm({ form, setForm }) {
                             updated[idx].actualVal = e.target.value;
                             setForm({ ...form, salesPerformances: updated });
                           }} 
-                          placeholder="Contoh: 17999983231 (Realisasi Sales)" 
+                          placeholder="Contoh: 17999983231" 
                           className="w-full bg-bg border border-line rounded px-2.5 py-1 text-white font-mono focus:outline-none focus:border-accent" 
                         />
                       </div>
@@ -386,11 +378,11 @@ export default function SalesForm({ form, setForm }) {
                     />
                   </div>
 
-                  {/* Sub-Section Top Produk Per Sales */}
+                  {/* Sub-Section Top Produk Per Sales (Dinamis Sesuai Tahun Aktif) */}
                   <div className="bg-bg/60 border border-emerald-500/30 rounded-xl p-3 space-y-3 mt-3">
                     <div className="flex justify-between items-center">
                       <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider">
-                        Top Produk / Item Group (Kimberly, Alpha, Haikou, Loctite, Panasonic, dll)[cite: 107]
+                        Top Produk / Item Group (Kimberly, Alpha, Haikou, Loctite, Panasonic, dll)
                       </span>
                       <button
                         type="button"
@@ -447,7 +439,9 @@ export default function SalesForm({ form, setForm }) {
 
                           <div className="grid grid-cols-2 gap-2 text-xs">
                             <div>
-                              <label className="text-[9px] text-sub block mb-0.5">Penjualan 2024 / Lalu (Rp)</label>
+                              <label className="text-[9px] text-sub block mb-0.5">
+                                Penjualan {prevYear} / Lalu (Rp)
+                              </label>
                               <input
                                 type="text"
                                 value={prod.totalQty || prod.laluVal || ""}
@@ -458,12 +452,14 @@ export default function SalesForm({ form, setForm }) {
                                   updated[idx].topProducts[pIdx].laluVal = val;
                                   setForm({ ...form, salesPerformances: updated });
                                 }}
-                                placeholder="Contoh: 30089205146"
+                                placeholder={`Contoh: Penjualan ${prevYear}`}
                                 className="w-full bg-bg border border-line rounded px-2 py-1 text-white font-mono text-[11px] focus:outline-none focus:border-emerald-500"
                               />
                             </div>
                             <div>
-                              <label className="text-[9px] text-sub block mb-0.5">Penjualan 2025 / Berjalan (Rp)</label>
+                              <label className="text-[9px] text-sub block mb-0.5">
+                                Penjualan {currentYear} / Berjalan (Rp)
+                              </label>
                               <input
                                 type="text"
                                 value={prod.category || prod.jalanVal || prod.actualVal || ""}
@@ -475,7 +471,7 @@ export default function SalesForm({ form, setForm }) {
                                   updated[idx].topProducts[pIdx].actualVal = val;
                                   setForm({ ...form, salesPerformances: updated });
                                 }}
-                                placeholder="Contoh: 20489383222"
+                                placeholder={`Contoh: Penjualan ${currentYear}`}
                                 className="w-full bg-bg border border-line rounded px-2 py-1 text-white font-mono text-[11px] focus:outline-none focus:border-emerald-500"
                               />
                             </div>
@@ -490,22 +486,20 @@ export default function SalesForm({ form, setForm }) {
             </div>
           </section>
 
-          {/* 3. INOVASI & TEROBOSAN KOMERSIAL */}
           <section className="bg-card border border-purple-500/40 rounded-xl p-4 space-y-3">
             <div>
-              <h2 className="font-semibold text-sm text-purple-400">Inovasi & Terobosan Komersial / Strategi 2026</h2>
-              <p className="text-xs text-sub mt-0.5">Tuliskan program baru, terobosan efisiensi, atau rencana aksi 2026.</p>
+              <h2 className="font-semibold text-sm text-purple-400">Inovasi & Terobosan Komersial / Strategi {currentYear}</h2>
+              <p className="text-xs text-sub mt-0.5">Tuliskan program baru, terobosan efisiensi, atau rencana aksi {currentYear}.</p>
             </div>
             <textarea
               rows={3}
               value={form.branchInnovations || ""}
               onChange={(e) => setForm({ ...form, branchInnovations: e.target.value })}
-              placeholder="Contoh: Road show customer gathering, penambahan series item online shop, pemisahan PIC sales retail & trading, get back existing customer..."
+              placeholder="Contoh: Road show customer gathering, penambahan series item online shop..."
               className="w-full bg-bg border border-line rounded-xl p-3 text-xs text-white focus:outline-none focus:border-purple-500"
             />
           </section>
 
-          {/* 4. SALES SUPPORT & OPERASIONAL PENDUKUNG */}
           <section className="bg-card border border-amber-500/40 rounded-xl p-4 space-y-3">
             <div>
               <h2 className="font-semibold text-sm text-amber-400">Sales Support & Operasional Pendukung</h2>
@@ -528,7 +522,7 @@ export default function SalesForm({ form, setForm }) {
                   type="text" 
                   value={form.salesSupportCoord || ""} 
                   onChange={(e) => setForm({ ...form, salesSupportCoord: e.target.value })} 
-                  placeholder="Contoh: Sinkronisasi dengan tim AR & efisiensi shipment by air..." 
+                  placeholder="Contoh: Sinkronisasi dengan tim AR & efisiensi shipment..." 
                   className="w-full bg-bg border border-line rounded px-2.5 py-1.5 text-white" 
                 />
               </div>
@@ -537,27 +531,25 @@ export default function SalesForm({ form, setForm }) {
               rows={3}
               value={form.salesSupportEvaluation || ""}
               onChange={(e) => setForm({ ...form, salesSupportEvaluation: e.target.value })}
-              placeholder="Tuliskan catatan evaluasi kendala internal/eksternal sales support (misal: mencari alternatif produk diluar distributor)..."
+              placeholder="Tuliskan catatan evaluasi kendala internal/eksternal sales support..."
               className="w-full bg-bg border border-line rounded-xl p-3 text-xs text-white focus:outline-none focus:border-amber-500 mt-2"
             />
           </section>
 
-          {/* 5. STRATEGIC OUTLOOK & ISSUE 2027 */}
           <section className="bg-card border border-purple-500/40 rounded-xl p-4 space-y-3">
             <div>
-              <h2 className="font-semibold text-sm text-purple-400">Strategic Outlook & Issue 2027</h2>
+              <h2 className="font-semibold text-sm text-purple-400">Strategic Outlook & Issue {currentYear + 1}</h2>
               <p className="text-xs text-sub mt-0.5">Input bayangan masa depan, isu-isu krusial, atau perbaikan strategis jangka panjang.</p>
             </div>
             <textarea
               rows={4}
               value={form.strategicOutlook2027 || ""}
               onChange={(e) => setForm({ ...form, strategicOutlook2027: e.target.value })}
-              placeholder="Tuliskan isu atau rencana perbaikan strategis 2027..."
+              placeholder={`Tuliskan isu atau rencana perbaikan strategis ${currentYear + 1}...`}
               className="w-full bg-bg border border-line rounded-xl p-3 text-xs text-white focus:outline-none focus:border-purple-500"
             />
           </section>
 
-          {/* 6. CATATAN & EVALUASI BEBAS DEPARTEMEN */}
           <section className="bg-card border border-accent/40 rounded-xl p-4 space-y-3">
             <div>
               <h2 className="font-semibold text-sm text-accent">Catatan & Evaluasi Bebas Departemen</h2>
