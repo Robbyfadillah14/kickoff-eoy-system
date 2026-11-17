@@ -207,7 +207,7 @@ export default function DashboardPage() {
     }, 2000);
   }
 
-  // Fungsi pintar untuk merender Deck interaktif sesuai nama departemen laporan
+  // Fungsi untuk merender Deck interaktif sesuai nama departemen laporan
   const renderDepartmentDeck = (report) => {
     const deptName = (report?.department?.name || "").toLowerCase();
     const salesType = report?.metricsJson?.salesType || "PROFIT";
@@ -292,7 +292,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* BANNER SAMBUTAN INTEGRASI 2024 - 2027 */}
+      {/* BANNER SAMBUTAN KONSOLIDASI 2024 - 2027 */}
       <div className="bg-gradient-to-r from-purple-950/30 via-slate-900 to-slate-900 border border-purple-500/30 rounded-2xl p-4 sm:p-5 shadow-lg flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div className="space-y-1.5">
           <div className="flex flex-wrap items-center gap-2">
@@ -301,7 +301,7 @@ export default function DashboardPage() {
             </span>
           </div>
           <p className="text-xs text-slate-300 leading-relaxed max-w-3xl">
-            Halo, <b className="text-white">{user.name}</b>! Seluruh rekapitulasi kinerja dari tahun <span className="text-cyan-400 font-bold">2024 hingga 2027</span> telah digabungkan secara otomatis ke dalam satu tampilan terpadu per departemen. Pilih tahun spesifik hanya saat melakukan pengisian atau pengeditan data laporan.
+            Halo, <b className="text-white">{user.name}</b>! Seluruh rekapitulasi kinerja dari tahun <span className="text-cyan-400 font-bold">2024 hingga 2027</span> telah digabungkan secara terpadu. Tahun 2027 diposisikan di akhir sebagai fokus proyeksi inovasi masa depan.
           </p>
         </div>
         <div className="flex items-center gap-3 bg-slate-950/60 border border-slate-800 px-4 py-3 rounded-xl shrink-0">
@@ -412,7 +412,7 @@ export default function DashboardPage() {
                     e.preventDefault();
                     e.stopPropagation();
                     
-                    const confirmed = window.confirm(`Yakin ingin menghapus laporan aktif (${r.department?.name} - Tahun ${r.year}) secara permanen?`);
+                    const confirmed = window.confirm(`Yakin ingin menghapus laporan aktif (${r.department?.name}) secara permanen?`);
                     if (!confirmed) return;
 
                     try {
