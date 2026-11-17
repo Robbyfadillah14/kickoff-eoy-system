@@ -21,8 +21,8 @@ const formatRupiah = (val) => {
   return `Rp ${num.toLocaleString('id-ID')}`;
 };
 
-// [DESAIN] ukuran "kanvas" slide (16:9). Semua isi slide didesain di ukuran ini lalu di-scale otomatis.
-const STAGE_W = 1280;
+// [DESAIN] Diperbesar lebarnya supaya kanvas slide jauh lebih besar & memenuhi ruang kiri-kanan layar
+const STAGE_W = 1360;
 const STAGE_H = 720;
 const RING_R = 58;
 const RING_C = 2 * Math.PI * RING_R;
@@ -35,7 +35,6 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
 
   const userSummary = report?.achievementSummary || mJson.achievementSummary || "Belum ada ringkasan pencapaian yang di-input.";
 
-  // Slide 0: Executive Master Dashboard, Slide 1..3: detail per tahun (2024-2026), Slide terakhir: Strategic Outlook 2027
   const totalSlides = historicalYears.length + 2;
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -65,7 +64,7 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
     return () => clearInterval(timer);
   }, [isPlaying, nextSlide]);
 
-  // [DESAIN] scale otomatis supaya slide selalu 16:9 dan muat di layar
+  // [DESAIN] scale otomatis dengan mengisi lebar kontainer secara maksimal
   const stageRef = useRef(null);
   const [scale, setScale] = useState(1);
   useEffect(() => {
@@ -101,7 +100,6 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
     }
   });
 
-  // ---- Data turunan untuk tampilan (diambil dari input yang sama, tidak mengubah sumber data) ----
   const yearData = historicalYears.map((yr) => {
     const rep = getReportForYear(yr);
     const metrics = rep ? (rep?.metricsJson || rep || {}) : {};
@@ -198,12 +196,12 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
         </div>
       </div>
 
-      {/* 2. Slide Viewport: kanvas 16:9 ala PowerPoint, di-scale otomatis */}
-      <div className="flex-1 flex items-center justify-center p-3 sm:p-4 z-10">
+      {/* 2. Slide Viewport: Dibuat lebih lebar & mengisi penuh ruang */}
+      <div className="flex-1 flex items-center justify-center p-2 sm:p-3 z-10 w-full">
         <div
           ref={stageRef}
           className="w-full rounded-xl shadow-2xl overflow-hidden ring-1 ring-white/10"
-          style={{ maxWidth: "min(100%, calc((100vh - 190px) * 16 / 9))", height: STAGE_H * scale }}
+          style={{ maxWidth: "100%", height: STAGE_H * scale }}
         >
           <div
             className="relative bg-[#EEF3F0] overflow-hidden"
@@ -485,7 +483,7 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
             {/* SLIDE TERAKHIR: STRATEGIC OUTLOOK 2027 */}
             {currentSlide === totalSlides - 1 && (
               <div className="absolute inset-0 p-8 flex items-center justify-center animate-fadeIn text-center">
-                <div className="w-full max-w-[1040px] bg-[#12324A] text-white border border-[#2B6285] p-10 rounded-3xl shadow-2xl space-y-6 relative overflow-hidden">
+                <div className="w-full max-w-[1120px] bg-[#12324A] text-white border border-[#2B6285] p-10 rounded-3xl shadow-2xl space-y-6 relative overflow-hidden">
                   <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-[#2B6285] via-[#A3C400] to-[#2F7A45]"></div>
 
                   <div className="inline-flex items-center gap-2 bg-[#A3C400] text-[#1B2A02] px-4 py-2 rounded-full text-sm font-bold">
