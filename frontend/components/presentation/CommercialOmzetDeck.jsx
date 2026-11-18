@@ -1,11 +1,14 @@
 "use client";
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { 
-  ChevronLeft, ChevronRight, Play, Pause, RotateCcw, TrendingUp, ArrowUpRight, 
-  BarChart3, Target, Sparkles, CheckCircle2, Zap, 
-  ShieldCheck, ArrowRightLeft, Flag, CheckCircle, Calendar, User, Package, AlertTriangle, TrendingDown
+import {
+  ChevronLeft, ChevronRight, Play, Pause, RotateCcw, TrendingUp, ArrowUpRight,
+  BarChart3, Target, Sparkles, CheckCircle2, Zap,
+  ShieldCheck, Flag, Calendar, User, Package, TrendingDown, FileText
 } from "lucide-react";
 
+/* ------------------------------------------------------------------ */
+/*  HELPERS                                                            */
+/* ------------------------------------------------------------------ */
 const formatRupiah = (val) => {
   const num = Number(val || 0);
   if (num === 0) return "Rp 0";
@@ -21,21 +24,145 @@ const formatRupiah = (val) => {
   return `Rp ${num.toLocaleString('id-ID')}`;
 };
 
-// [DESAIN] Diperbesar lebarnya supaya kanvas slide jauh lebih besar & memenuhi ruang kiri-kanan layar
+// parse aman: "12.000", "Rp 5000", "abc" -> angka / 0 (tidak pernah NaN)
+const toNum = (v) => {
+  const n = Number(String(v ?? "").replace(/[^0-9.-]+/g, ""));
+  return Number.isFinite(n) ? n : 0;
+};
+
+// persentase ekstrem (mis. 100042%) dipendekkan biar tidak jebol kotak
+const fmtAch = (v) => (v > 999 ? ">999%" : `${v.toFixed(0)}%`);
+
+// perubahan % dari prev ke cur (null kalau tidak ada pembanding)
+const pctDelta = (cur, prev) => (prev > 0 ? ((cur - prev) / prev) * 100 : null);
+
 const STAGE_W = 1360;
 const STAGE_H = 720;
 const RING_R = 58;
 const RING_C = 2 * Math.PI * RING_R;
 const PIE_COLORS = ["#2B6285", "#A3C400", "#2F7A45", "#5B8DB8", "#94A3B8"];
+const YEAR_COLORS = ["#2B6285", "#2F7A45", "#C98A00"]; // 2024, 2025, 2026
 
+/* ------------------------------------------------------------------ */
+/*  KOMPONEN KECIL                                                     */
+/* ------------------------------------------------------------------ */
+function DeltaChip({ cur, prev, labelBase = "Baseline" }) {
+  const d = pctDelta(cur, prev);
+  if (d === null) {
+    return <span className="px-1.5 py-0.5 rounded-md text-[11px] font-bold bg-slate-200 text-slate-700">{labelBase}</span>;
+  }
+  const up = d >= 0;
+  return (
+    <span className={`px-1.5 py-0.5 rounded-md text-[11px] font-bold ${up ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"}`}>
+      {up ? "▲" : "▼"} {Math.abs(d) > 999 ? ">999" : Math.abs(d).toFixed(0)}%
+    </span>
+  );
+}
+
+function YearTag({ yr, idx }) {
+  return (
+    <span className="inline-block px-3 py-1 rounded-full text-sm font-black text-white" style={{ background: YEAR_COLORS[idx % YEAR_COLORS.length] }}>
+      {yr}
+    </span>
+  );
+}
+
+function SlideHeader({ icon, title, subtitle }) {
+  return (
+    <div className="flex items-center justify-between shrink-0">
+      <div className="flex items-center gap-3">
+        <div className="w-11 h-11 rounded-xl bg-[#12324A] text-[#A3C400] flex items-center justify-center">{icon}</div>
+        <div>
+          <div className="text-[26px] font-black text-[#12324A] leading-none">{title}</div>
+          {subtitle && <div className="text-[13px] text-slate-500 mt-1">{subtitle}</div>}
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        {["2024", "2025", "2026"].map((y, i) => (
+          <span key={y} className="px-3 py-1 rounded-full text-xs font-black text-white" style={{ background: YEAR_COLORS[i] }}>{y}</span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function Empty({ text = "Belum diisi" }) {
+  return <span className="text-sm italic text-slate-400">{text}</span>;
+}
+
+/* Timeline besar: bubble per tahun + panah naik/turun vs tahun sebelumnya */
+function YearTimeline({ yearData }) {
+  const logs = yearData.filter((d) => d.actual > 0).map((d) => Math.log10(d.actual));
+  const lo = logs.length ? Math.min(...logs) : 0;
+  const hi = logs.length ? Math.max(...logs) : 1;
+  const size = (v) => (v > 0 && hi > lo ? 130 + ((Math.log10(v) - lo) / (hi - lo)) * 100 : 130);
+
+  return (
+    <div className="grid grid-cols-3 gap-6 flex-1 min-h-0 items-end px-6">
+      {yearData.map((d, i) => {
+        const prev = i > 0 ? yearData[i - 1] : null;
+        const hasPrev = prev && prev.rep && prev.actual > 0;
+        const delta = hasPrev ? pctDelta(d.actual, prev.actual) : null;
+        const up = delta === null ? null : delta >= 0;
+        const s = size(d.actual);
+        const c = YEAR_COLORS[i % YEAR_COLORS.length];
+
+        return (
+          <div key={d.yr} className="flex flex-col items-center text-center">
+            <div
+              className="rounded-full flex flex-col items-center justify-center text-white font-black leading-tight shadow-xl"
+              style={{ width: s, height: s, background: `radial-gradient(circle at 30% 25%, ${c}CC, ${c})` }}
+            >
+              <span className="text-[22px] px-2">{d.rep ? formatRupiah(d.actual) : "-"}</span>
+              <span className="text-xs font-semibold opacity-80">realisasi</span>
+            </div>
+
+            <div
+              className="mt-3 w-[116px] pt-3 pb-7 text-white text-lg font-black"
+              style={{
+                clipPath: "polygon(0 0,100% 0,100% 70%,50% 100%,0 70%)",
+                background:
+                  up === null
+                    ? "linear-gradient(#64748B,#CBD5E1)"
+                    : up
+                    ? "linear-gradient(#2F7A45,#86EFAC)"
+                    : "linear-gradient(#DC2626,#FCA5A5)",
+              }}
+            >
+              {up === null ? "Baseline" : `${up ? "▲" : "▼"} ${Math.abs(delta) > 999 ? ">999" : Math.abs(delta).toFixed(0)}%`}
+            </div>
+
+            <div className="text-[40px] font-black leading-none mt-2" style={{ color: c }}>{d.yr}</div>
+            <div className="text-[13px] text-slate-500 mt-1">Target {d.rep ? formatRupiah(d.target) : "-"}</div>
+            {d.rep ? (
+              <span className={`mt-2 px-3 py-1 rounded-full text-sm font-bold ${d.ach >= 100 ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"}`}>
+                {d.ach >= 100 ? "Tercapai" : "Belum"} · {fmtAch(d.ach)}
+              </span>
+            ) : (
+              <span className="mt-2 px-3 py-1 rounded-full text-sm font-bold bg-slate-200 text-slate-500">Belum ada laporan</span>
+            )}
+            <div className="flex items-center gap-2 mt-2 text-xs text-slate-600 font-semibold">
+              <span className="px-2 py-0.5 rounded-md bg-slate-100">Tim sales: {d.sList.length}</span>
+              <span className="px-2 py-0.5 rounded-md bg-slate-100">Produk: {d.products.length}</span>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  KOMPONEN UTAMA                                                     */
+/* ------------------------------------------------------------------ */
 export default function CommercialProfitDeck({ report, allYearlyReports = {} }) {
-  const historicalYears = [2024, 2025, 2026]; 
+  const historicalYears = [2024, 2025, 2026];
   const mJson = report?.metricsJson || {};
   const salesType = mJson.salesType || "PROFIT";
 
-  const userSummary = report?.achievementSummary || mJson.achievementSummary || "Belum ada ringkasan pencapaian yang di-input.";
-
-  const totalSlides = historicalYears.length + 2;
+  // Master + Timeline + Tim Sales + Produk + Inovasi + Sales Support + Outlook
+  const slideLabels = ["Master Dashboard", "Timeline", "Tim Sales", "Produk", "Inovasi", "Sales Support", "Outlook 2027"];
+  const totalSlides = slideLabels.length;
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
 
@@ -64,7 +191,6 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
     return () => clearInterval(timer);
   }, [isPlaying, nextSlide]);
 
-  // [DESAIN] scale otomatis dengan mengisi lebar kontainer secara maksimal
   const stageRef = useRef(null);
   const [scale, setScale] = useState(1);
   useEffect(() => {
@@ -84,60 +210,80 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
     return null;
   };
 
+  // ambil field teks dari report (metricsJson dulu, lalu root report)
+  const pickText = (rep, key) => {
+    if (!rep) return "";
+    const m = rep.metricsJson || {};
+    return String(m[key] || rep[key] || "").trim();
+  };
+
+  const getSalesList = (rep) => {
+    const list = rep?.metricsJson?.salesPerformances || rep?.salesPerformances || [];
+    return Array.isArray(list) ? list : [];
+  };
+
+  /* ---------------- data per tahun ---------------- */
   let totalAllActual = 0;
   let totalAllTarget = 0;
-  
   const activeSalesNames = new Set();
   historicalYears.forEach(yr => {
     const rep = getReportForYear(yr);
     if (rep) {
-      const sList = rep?.metricsJson?.salesPerformances || rep?.salesPerformances || [];
-      totalAllActual += sList.reduce((acc, s) => acc + Number(s.actualVal || 0), 0);
-      totalAllTarget += sList.reduce((acc, s) => acc + Number(s.targetProfit || s.targetVal || 0), 0);
+      const sList = getSalesList(rep);
+      totalAllActual += sList.reduce((acc, s) => acc + toNum(s.actualVal), 0);
+      totalAllTarget += sList.reduce((acc, s) => acc + toNum(s.targetProfit || s.targetVal), 0);
       sList.forEach(s => {
-        if (s.salesName) activeSalesNames.add(s.salesName.trim());
+        if (s.salesName) activeSalesNames.add(String(s.salesName).trim());
       });
     }
   });
 
   const yearData = historicalYears.map((yr) => {
     const rep = getReportForYear(yr);
-    const metrics = rep ? (rep?.metricsJson || rep || {}) : {};
-    const sList = metrics.salesPerformances || [];
+    const sList = rep ? getSalesList(rep) : [];
 
     const products = [];
-    if (rep) {
-      sList.forEach(sp => {
-        if (sp.topProducts && Array.isArray(sp.topProducts)) {
-          sp.topProducts.forEach(prod => {
-            if (prod.productName && prod.productName.trim() !== "") {
-              products.push({
-                productName: prod.productName.trim(),
-                currentVal: Number(prod.category || prod.actualVal || 0),
-                prevValInput: Number(prod.prevCategory || prod.prevVal || 0)
-              });
-            }
-          });
-        }
-      });
-    }
+    sList.forEach(sp => {
+      if (sp.topProducts && Array.isArray(sp.topProducts)) {
+        sp.topProducts.forEach(prod => {
+          if (prod.productName && String(prod.productName).trim() !== "") {
+            products.push({
+              productName: String(prod.productName).trim(),
+              // nilai berjalan: dukung semua nama field yang dipakai form / Excel
+              currentVal: toNum(prod.category || prod.jalanVal || prod.actualVal),
+              // nilai tahun lalu: form menyimpan ke laluVal / totalQty
+              prevValInput: toNum(prod.laluVal || prod.totalQty || prod.prevCategory || prod.prevVal),
+            });
+          }
+        });
+      }
+    });
 
-    const innovations = rep ? (rep?.branchInnovations || metrics.branchInnovations || "Belum ada catatan inovasi.") : "Belum ada data laporan.";
-    const actual = sList.reduce((acc, s) => acc + Number(s.actualVal || 0), 0);
-    const target = sList.reduce((acc, s) => acc + Number(s.targetProfit || s.targetVal || 0), 0);
-    return { yr, rep, sList, products, innovations, actual, target, ach: target > 0 ? (actual / target) * 100 : 0 };
+    const actual = sList.reduce((acc, s) => acc + toNum(s.actualVal), 0);
+    const target = sList.reduce((acc, s) => acc + toNum(s.targetProfit || s.targetVal), 0);
+
+    return {
+      yr, rep, sList, products, actual, target,
+      ach: target > 0 ? (actual / target) * 100 : 0,
+      innovations: pickText(rep, "branchInnovations"),
+      supportPo: pickText(rep, "salesSupportPo"),
+      supportCoord: pickText(rep, "salesSupportCoord"),
+      supportEval: pickText(rep, "salesSupportEvaluation"),
+      notes: pickText(rep, "generalNotes"),
+    };
   });
 
   const totalAch = totalAllTarget > 0 ? (totalAllActual / totalAllTarget) * 100 : 0;
   const maxYearVal = Math.max(...yearData.flatMap(d => [d.actual, d.target]), 1);
 
+  /* ---------------- agregat master ---------------- */
   const salesAgg = {};
   yearData.forEach(d => d.sList.forEach(s => {
-    const name = (s.salesName || "").trim();
+    const name = String(s.salesName || "").trim();
     if (!name) return;
     salesAgg[name] = salesAgg[name] || { name, actual: 0, target: 0 };
-    salesAgg[name].actual += Number(s.actualVal || 0);
-    salesAgg[name].target += Number(s.targetProfit || s.targetVal || 0);
+    salesAgg[name].actual += toNum(s.actualVal);
+    salesAgg[name].target += toNum(s.targetProfit || s.targetVal);
   }));
   const topSales = Object.values(salesAgg)
     .map(s => ({ ...s, ach: s.target > 0 ? (s.actual / s.target) * 100 : 0 }))
@@ -161,15 +307,48 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
   }).join(", ");
   const pieBg = prodTotal > 0 ? `conic-gradient(${pieSegments})` : "#E2E8F0";
 
-  const activeYear = currentSlide >= 1 && currentSlide <= historicalYears.length ? yearData[currentSlide - 1] : null;
-  const slideLabels = ["Master Dashboard", ...historicalYears.map(String), "Outlook 2027"];
+  /* ---------------- matriks Tim Sales (baris = sales, kolom = tahun) ---------------- */
+  const salesMatrix = {};
+  yearData.forEach((d, yi) => d.sList.forEach(s => {
+    const name = String(s.salesName || "").trim();
+    if (!name) return;
+    if (!salesMatrix[name]) salesMatrix[name] = { name, total: 0, cells: [null, null, null] };
+    const tgt = toNum(s.targetProfit || s.targetVal);
+    const act = toNum(s.actualVal);
+    const cell = salesMatrix[name].cells[yi] || { tgt: 0, act: 0, note: "" };
+    cell.tgt += tgt;
+    cell.act += act;
+    const note = String(s.note || "").trim();
+    if (note && !cell.note.includes(note)) cell.note = cell.note ? `${cell.note} · ${note}` : note;
+    salesMatrix[name].cells[yi] = cell;
+    salesMatrix[name].total += act;
+  }));
+  const salesRows = Object.values(salesMatrix).sort((a, b) => b.total - a.total);
 
+  /* ---------------- matriks Produk (baris = item group, kolom = tahun) ---------------- */
+  const prodMatrix = {};
+  yearData.forEach((d, yi) => d.products.forEach(p => {
+    if (!prodMatrix[p.productName]) prodMatrix[p.productName] = { name: p.productName, total: 0, cells: [null, null, null] };
+    const cell = prodMatrix[p.productName].cells[yi] || { cur: 0, prev: 0 };
+    cell.cur += p.currentVal;
+    cell.prev += p.prevValInput;
+    prodMatrix[p.productName].cells[yi] = cell;
+    prodMatrix[p.productName].total += p.currentVal;
+  }));
+  const prodRows = Object.values(prodMatrix).sort((a, b) => b.total - a.total);
+
+  /* ---------------- outlook & catatan ---------------- */
   const report2027 = getReportForYear(2027);
-  const outlook2027 = report2027?.metricsJson?.strategicOutlook2027 || report2027?.strategicOutlook2027 || mJson.strategicOutlook2027 || "Belum ada strategic outlook atau isu 2027 yang di-input.";
+  const outlook2027 =
+    report2027?.metricsJson?.strategicOutlook2027 ||
+    report2027?.strategicOutlook2027 ||
+    mJson.strategicOutlook2027 ||
+    yearData.slice().reverse().map(d => pickText(d.rep, "strategicOutlook2027")).find(Boolean) ||
+    "";
 
   return (
     <div className="relative w-full bg-[#0E2536] border border-[#12324A] rounded-2xl shadow-2xl flex flex-col justify-between overflow-hidden font-sans text-slate-900 tabular-nums">
-      
+
       {/* 1. Header Bar */}
       <div className="flex items-center justify-between px-6 py-3.5 bg-[#12324A] z-10">
         <div className="flex items-center gap-3">
@@ -196,7 +375,7 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
         </div>
       </div>
 
-      {/* 2. Slide Viewport: Dibuat lebih lebar & mengisi penuh ruang */}
+      {/* 2. Slide Viewport */}
       <div className="flex-1 flex items-center justify-center p-2 sm:p-3 z-10 w-full">
         <div
           ref={stageRef}
@@ -208,7 +387,7 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
             style={{ width: STAGE_W, height: STAGE_H, transform: `scale(${scale})`, transformOrigin: "top left" }}
           >
 
-            {/* SLIDE 0: EXECUTIVE MASTER DASHBOARD */}
+            {/* ============ SLIDE 1: MASTER DASHBOARD ============ */}
             {currentSlide === 0 && (
               <div className="absolute inset-0 p-5 flex flex-col gap-4 animate-fadeIn">
 
@@ -246,7 +425,7 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
                           strokeDasharray={`${(Math.min(totalAch, 100) / 100) * RING_C} ${RING_C}`}
                         />
                       </svg>
-                      <span className="absolute inset-0 flex items-center justify-center text-[34px] font-black">{totalAch.toFixed(0)}%</span>
+                      <span className="absolute inset-0 flex items-center justify-center text-[34px] font-black">{fmtAch(totalAch)}</span>
                     </div>
                     <div className="text-center">
                       <div className="text-[22px] font-black leading-tight">{formatRupiah(totalAllActual)}</div>
@@ -309,7 +488,7 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
                                 </div>
                               </div>
                               <span className={`shrink-0 px-3 py-1.5 rounded-lg text-base font-black ${d.ach >= 100 ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>
-                                {d.ach.toFixed(0)}%
+                                {fmtAch(d.ach)}
                               </span>
                             </>
                           ) : (
@@ -328,7 +507,7 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
                         <div key={s.name}>
                           <div className="flex justify-between items-center text-sm font-bold text-slate-800">
                             <span className="truncate max-w-[130px]" title={s.name}>{s.name}</span>
-                            <span className={s.ach >= 100 ? "text-[#2F7A45]" : "text-amber-600"}>{s.ach.toFixed(0)}%</span>
+                            <span className={s.ach >= 100 ? "text-[#2F7A45]" : "text-amber-600"}>{fmtAch(s.ach)}</span>
                           </div>
                           <div className="h-2 mt-1 rounded-full bg-slate-100 overflow-hidden">
                             <div className={`h-full rounded-full ${s.ach >= 100 ? "bg-[#7FA800]" : "bg-amber-500"}`} style={{ width: `${Math.min(s.ach, 100)}%` }} />
@@ -365,158 +544,235 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
               </div>
             )}
 
-            {/* SLIDE 1..3: DETAIL PER TAHUN */}
-            {activeYear && (
-              <div className="absolute inset-0 p-5 flex flex-col gap-4 animate-fadeIn">
-
-                <div className="flex items-stretch gap-4 h-[104px] shrink-0">
-                  <div className="bg-[#12324A] text-white rounded-2xl px-6 flex items-center gap-4 w-[330px] shrink-0">
-                    <Calendar size={30} className="text-[#A3C400]" />
-                    <div>
-                      <div className="text-sm text-slate-300">Tahun operasional</div>
-                      <div className="text-[44px] font-black leading-none">{activeYear.yr}</div>
-                    </div>
-                    <span className={`ml-auto text-xs px-2.5 py-1 rounded-full font-bold ${activeYear.rep ? "bg-[#A3C400] text-[#1B2A02]" : "bg-white/15 text-slate-300"}`}>
-                      {activeYear.rep ? "Logged" : "Kosong"}
-                    </span>
-                  </div>
-                  <div className="flex-1 bg-[#2B6285] text-white rounded-2xl px-6 flex flex-col justify-center">
-                    <div className="text-[13px] text-sky-100">Target</div>
-                    <div className="text-[30px] font-black leading-none mt-1">{formatRupiah(activeYear.target)}</div>
-                  </div>
-                  <div className="flex-1 bg-[#2F7A45] text-white rounded-2xl px-6 flex flex-col justify-center">
-                    <div className="text-[13px] text-emerald-100">Revenue aktual</div>
-                    <div className="text-[30px] font-black leading-none mt-1">{formatRupiah(activeYear.actual)}</div>
-                  </div>
-                  <div className="w-[200px] bg-[#A3C400] text-[#1B2A02] rounded-2xl px-6 flex flex-col justify-center">
-                    <div className="text-[13px] font-semibold text-[#2E4A00]">Pencapaian</div>
-                    <div className="text-[40px] font-black leading-none mt-1">{activeYear.ach.toFixed(0)}%</div>
-                  </div>
+            {/* ============ SLIDE 2: TIMELINE 2024-2026 ============ */}
+            {currentSlide === 1 && (
+              <div className="absolute inset-0 p-5 flex flex-col gap-3 animate-fadeIn">
+                <SlideHeader
+                  icon={<Calendar size={22} />}
+                  title="Perjalanan Kinerja 2024 – 2026"
+                  subtitle="Realisasi per tahun · panah menunjukkan naik / turun dibanding tahun sebelumnya"
+                />
+                <div className="flex-1 min-h-0 bg-white rounded-2xl shadow-md border border-slate-200 py-4 flex flex-col">
+                  <YearTimeline yearData={yearData} />
                 </div>
+              </div>
+            )}
 
-                <div className="grid grid-cols-[1.5fr_1fr_1fr] gap-4 flex-1 min-h-0">
-                  <div className="bg-white rounded-2xl shadow-md border border-slate-200 p-4 flex flex-col min-h-0">
-                    <span className="text-base font-bold text-[#2B6285] flex items-center gap-2 mb-3">
-                      <User size={18} /> Tim Sales ({activeYear.sList.length})
-                    </span>
-                    <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 min-h-0">
-                      {activeYear.sList.length > 0 ? (
-                        <div className="grid grid-cols-2 gap-2.5">
-                          {activeYear.sList.map((sales, sIdx) => {
-                            const tgt = Number(sales.targetProfit || sales.targetVal || 0);
-                            const act = Number(sales.actualVal || 0);
-                            const ach = tgt > 0 ? ((act / tgt) * 100) : 0;
-                            const isAchieved = act >= tgt;
-
-                            return (
-                              <div key={sIdx} className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 space-y-1.5">
-                                <div className="flex justify-between items-center font-bold text-slate-900 text-sm">
-                                  <span className="truncate max-w-[150px]" title={sales.salesName}>{sales.salesName}</span>
-                                  <span className={ach >= 100 ? "text-[#2F7A45]" : "text-amber-600"}>{ach.toFixed(0)}%</span>
-                                </div>
-                                <div className="h-1.5 w-full rounded-full bg-slate-200 overflow-hidden">
-                                  <div className={`h-full rounded-full ${ach >= 100 ? "bg-[#7FA800]" : "bg-amber-500"}`} style={{ width: `${Math.min(ach, 100)}%` }} />
-                                </div>
-                                <div className="flex justify-between text-xs text-slate-600">
-                                  <span>Tgt: <b className="text-[#2B6285]">{formatRupiah(tgt)}</b></span>
-                                  <span>Akt: <b className="text-[#2F7A45]">{formatRupiah(act)}</b></span>
-                                </div>
-                                <div className={`px-2 py-0.5 rounded-md text-xs font-bold flex justify-between ${isAchieved ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"}`}>
-                                  <span>{isAchieved ? "Wah Naik Nih!" : "Wah Turun Nih!"}</span>
-                                  <span>{isAchieved ? "Tercapai" : "Belum"}</span>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <div className="text-slate-400 italic text-sm py-1">Belum ada data sales.</div>
-                      )}
-                    </div>
+            {/* ============ SLIDE 3: TIM SALES ============ */}
+            {currentSlide === 2 && (
+              <div className="absolute inset-0 p-5 flex flex-col gap-3 animate-fadeIn">
+                <SlideHeader
+                  icon={<User size={22} />}
+                  title="Tim Sales"
+                  subtitle={`Pencapaian per personel / brand · ${salesRows.length} personel · ${salesType === "OMZET" ? "Omzet" : "Profit"} oriented`}
+                />
+                <div className="flex-1 min-h-0 bg-white rounded-2xl shadow-md border border-slate-200 p-4 flex flex-col">
+                  <div className="grid grid-cols-[210px_1fr_1fr_1fr] gap-3 pb-2 border-b border-slate-200 shrink-0">
+                    <div className="text-sm font-bold text-slate-500">Sales / Brand</div>
+                    {historicalYears.map((y, i) => (
+                      <div key={y}><YearTag yr={y} idx={i} /></div>
+                    ))}
                   </div>
-
-                  <div className="bg-white rounded-2xl shadow-md border border-slate-200 p-4 flex flex-col min-h-0">
-                    <span className="text-base font-bold text-[#2F7A45] flex items-center gap-2 mb-3">
-                      <Package size={18} /> Produk ({activeYear.products.length})
-                    </span>
-                    <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 space-y-2 min-h-0">
-                      {activeYear.products.length > 0 ? (
-                        activeYear.products.map((prod, pIdx) => {
-                          const hasPrev = prod.prevValInput > 0;
-                          const isIncreased = !hasPrev || prod.currentVal >= prod.prevValInput;
-
+                  <div className="flex-1 overflow-y-auto custom-scrollbar min-h-0">
+                    {salesRows.length > 0 ? salesRows.map((row) => (
+                      <div key={row.name} className="grid grid-cols-[210px_1fr_1fr_1fr] gap-3 py-2.5 border-b border-slate-100 items-stretch">
+                        <div className="flex items-center font-black text-[#12324A] text-base leading-tight pr-2" title={row.name}>
+                          <span className="line-clamp-2">{row.name}</span>
+                        </div>
+                        {row.cells.map((cell, yi) => {
+                          if (!cell) {
+                            return <div key={yi} className="rounded-xl bg-slate-50 border border-dashed border-slate-200 flex items-center justify-center"><Empty text="—" /></div>;
+                          }
+                          const ach = cell.tgt > 0 ? (cell.act / cell.tgt) * 100 : 0;
+                          const prevCell = yi > 0 ? row.cells[yi - 1] : null;
                           return (
-                            <div key={pIdx} className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 space-y-1.5">
-                              <div className="flex justify-between items-center font-bold text-slate-900 text-sm">
-                                <span className="truncate max-w-[110px]" title={prod.productName}>{prod.productName}</span>
-                                <span className="text-[#2F7A45]">{formatRupiah(prod.currentVal)}</span>
+                            <div key={yi} className="rounded-xl bg-slate-50 border border-slate-200 p-2.5 space-y-1">
+                              <div className="flex items-center justify-between">
+                                <span className={`text-xl font-black ${ach >= 100 ? "text-[#2F7A45]" : "text-amber-600"}`}>{fmtAch(ach)}</span>
+                                <DeltaChip cur={cell.act} prev={prevCell ? prevCell.act : 0} />
                               </div>
-                              <div className="flex justify-between items-center text-xs text-slate-600">
-                                <span>Lalu: {formatRupiah(prod.prevValInput)}</span>
-                                <span className={`px-1.5 py-0.5 rounded-md font-bold ${!hasPrev ? "bg-slate-200 text-slate-700" : isIncreased ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"}`}>
-                                  {!hasPrev ? "Baseline 🚀" : isIncreased ? "Wah Naik Nih!" : "Wah Turun Nih!"}
-                                </span>
+                              <div className="h-1.5 rounded-full bg-slate-200 overflow-hidden">
+                                <div className={`h-full rounded-full ${ach >= 100 ? "bg-[#7FA800]" : "bg-amber-500"}`} style={{ width: `${Math.min(ach, 100)}%` }} />
                               </div>
+                              <div className="flex justify-between text-[11px] text-slate-600">
+                                <span>Tgt <b className="text-[#2B6285]">{formatRupiah(cell.tgt)}</b></span>
+                                <span>Akt <b className="text-[#2F7A45]">{formatRupiah(cell.act)}</b></span>
+                              </div>
+                              {cell.note && <div className="text-[11px] italic text-slate-500 truncate" title={cell.note}>“{cell.note}”</div>}
                             </div>
                           );
-                        })
-                      ) : (
-                        <div className="text-slate-400 italic text-sm py-1">Belum ada data produk.</div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="bg-white rounded-2xl shadow-md border border-slate-200 p-4 flex flex-col min-h-0">
-                    <span className="text-base font-bold text-[#5B6B00] flex items-center gap-2 mb-3">
-                      <Zap size={18} /> Inovasi
-                    </span>
-                    <div className="flex-1 overflow-y-auto custom-scrollbar min-h-0">
-                      <p className="text-[15px] text-slate-700 bg-[#F4F8E4] p-3 rounded-xl border border-[#D7E39A] leading-relaxed whitespace-pre-line">
-                        {activeYear.rep ? activeYear.innovations : "Belum ada catatan inovasi."}
-                      </p>
-                    </div>
+                        })}
+                      </div>
+                    )) : (
+                      <div className="py-10 text-center"><Empty text="Belum ada data sales." /></div>
+                    )}
                   </div>
                 </div>
               </div>
             )}
 
-            {/* SLIDE TERAKHIR: STRATEGIC OUTLOOK 2027 */}
-            {currentSlide === totalSlides - 1 && (
-              <div className="absolute inset-0 p-8 flex items-center justify-center animate-fadeIn text-center">
-                <div className="w-full max-w-[1120px] bg-[#12324A] text-white border border-[#2B6285] p-10 rounded-3xl shadow-2xl space-y-6 relative overflow-hidden">
-                  <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-[#2B6285] via-[#A3C400] to-[#2F7A45]"></div>
-
-                  <div className="inline-flex items-center gap-2 bg-[#A3C400] text-[#1B2A02] px-4 py-2 rounded-full text-sm font-bold">
-                    <Sparkles size={16} /> Final stage: Strategic Outlook 2027
+            {/* ============ SLIDE 4: PRODUK ============ */}
+            {currentSlide === 3 && (
+              <div className="absolute inset-0 p-5 flex flex-col gap-3 animate-fadeIn">
+                <SlideHeader
+                  icon={<Package size={22} />}
+                  title="Top Produk / Item Group"
+                  subtitle={`Penjualan berjalan vs tahun lalu · ${prodRows.length} item group`}
+                />
+                <div className="flex-1 min-h-0 bg-white rounded-2xl shadow-md border border-slate-200 p-4 flex flex-col">
+                  <div className="grid grid-cols-[210px_1fr_1fr_1fr] gap-3 pb-2 border-b border-slate-200 shrink-0">
+                    <div className="text-sm font-bold text-slate-500">Item group</div>
+                    {historicalYears.map((y, i) => (
+                      <div key={y}><YearTag yr={y} idx={i} /></div>
+                    ))}
                   </div>
+                  <div className="flex-1 overflow-y-auto custom-scrollbar min-h-0">
+                    {prodRows.length > 0 ? prodRows.map((row) => (
+                      <div key={row.name} className="grid grid-cols-[210px_1fr_1fr_1fr] gap-3 py-2.5 border-b border-slate-100 items-stretch">
+                        <div className="flex items-center font-black text-[#12324A] text-base leading-tight pr-2" title={row.name}>
+                          <span className="line-clamp-2">{row.name}</span>
+                        </div>
+                        {row.cells.map((cell, yi) => {
+                          if (!cell) {
+                            return <div key={yi} className="rounded-xl bg-slate-50 border border-dashed border-slate-200 flex items-center justify-center"><Empty text="—" /></div>;
+                          }
+                          return (
+                            <div key={yi} className="rounded-xl bg-slate-50 border border-slate-200 p-2.5 space-y-1">
+                              <div className="flex items-center justify-between">
+                                <span className="text-lg font-black text-[#2F7A45]">{formatRupiah(cell.cur)}</span>
+                                <DeltaChip cur={cell.cur} prev={cell.prev} labelBase="Baseline 🚀" />
+                              </div>
+                              <div className="text-[11px] text-slate-600">Lalu: <b>{formatRupiah(cell.prev)}</b></div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )) : (
+                      <div className="py-10 text-center"><Empty text="Belum ada data produk." /></div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
 
-                  <h2 className="text-[38px] font-black text-white tracking-tight leading-tight">
-                    Proyeksi Masa Depan & Fokus Inovasi 2027
-                  </h2>
+            {/* ============ SLIDE 5: INOVASI ============ */}
+            {currentSlide === 4 && (
+              <div className="absolute inset-0 p-5 flex flex-col gap-3 animate-fadeIn">
+                <SlideHeader
+                  icon={<Zap size={22} />}
+                  title="Inovasi & Terobosan Komersial"
+                  subtitle="Program baru, efisiensi, dan rencana aksi dari tahun ke tahun"
+                />
+                <div className="flex-1 min-h-0 grid grid-cols-3 gap-4">
+                  {yearData.map((d, i) => (
+                    <div key={d.yr} className="bg-white rounded-2xl shadow-md border border-slate-200 flex flex-col min-h-0 overflow-hidden">
+                      <div className="px-5 py-3 text-white font-black text-2xl" style={{ background: YEAR_COLORS[i] }}>{d.yr}</div>
+                      <div className="flex-1 overflow-y-auto custom-scrollbar p-5 min-h-0">
+                        {d.innovations ? (
+                          <p className="text-[18px] text-slate-700 leading-relaxed whitespace-pre-line">{d.innovations}</p>
+                        ) : (
+                          <Empty text={d.rep ? "Belum diisi" : "Belum ada data laporan"} />
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
-                  <div className="bg-white/[0.06] border border-white/15 p-6 rounded-2xl text-left shadow-inner leading-relaxed">
-                    <span className="text-sm text-[#A3C400] font-bold block mb-2 flex items-center gap-2">
-                      <Zap size={17} /> Catatan Isu & Fokus Perbaikan 2027
-                    </span>
-                    <div className="max-h-[230px] overflow-y-auto custom-scrollbar">
-                      <p className="whitespace-pre-line text-xl text-slate-100 leading-relaxed font-sans">{outlook2027}</p>
+            {/* ============ SLIDE 6: SALES SUPPORT ============ */}
+            {currentSlide === 5 && (
+              <div className="absolute inset-0 p-5 flex flex-col gap-3 animate-fadeIn">
+                <SlideHeader
+                  icon={<ShieldCheck size={22} />}
+                  title="Sales Support & Operasional Pendukung"
+                  subtitle="Administrasi PO, koordinasi DO & piutang, serta evaluasi kendala"
+                />
+                <div className="flex-1 min-h-0 grid grid-cols-3 gap-4">
+                  {[
+                    { key: "supportPo", title: "Input & Verifikasi PO Masuk", sub: "Max 1 hari" },
+                    { key: "supportCoord", title: "Koordinasi DO & Follow Up Piutang", sub: "Sinkronisasi tim AR & shipment" },
+                    { key: "supportEval", title: "Evaluasi Kendala", sub: "Internal / eksternal" },
+                  ].map((col) => (
+                    <div key={col.key} className="bg-white rounded-2xl shadow-md border border-slate-200 p-4 flex flex-col min-h-0">
+                      <div className="text-base font-bold text-[#12324A] leading-tight">{col.title}</div>
+                      <div className="text-xs text-slate-500 mb-2">{col.sub}</div>
+                      <div className="flex-1 flex flex-col gap-2.5 min-h-0">
+                        {yearData.map((d, i) => (
+                          <div key={d.yr} className="flex-1 min-h-0 rounded-xl bg-slate-50 border border-slate-200 p-3 flex flex-col">
+                            <div className="mb-1.5"><YearTag yr={d.yr} idx={i} /></div>
+                            <div className="flex-1 overflow-y-auto custom-scrollbar min-h-0">
+                              {d[col.key] ? (
+                                <p className="text-[15px] text-slate-700 leading-snug whitespace-pre-line">{d[col.key]}</p>
+                              ) : (
+                                <Empty text={d.rep ? "Belum diisi" : "Belum ada data laporan"} />
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ============ SLIDE 7: OUTLOOK 2027 + CATATAN ============ */}
+            {currentSlide === 6 && (
+              <div className="absolute inset-0 p-6 flex flex-col gap-3 animate-fadeIn">
+                <div className="flex-1 min-h-0 grid grid-cols-[1.4fr_1fr] gap-4">
+                  <div className="bg-[#12324A] text-white border border-[#2B6285] p-7 rounded-3xl shadow-2xl relative overflow-hidden flex flex-col min-h-0">
+                    <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-[#2B6285] via-[#A3C400] to-[#2F7A45]"></div>
+                    <div className="inline-flex self-start items-center gap-2 bg-[#A3C400] text-[#1B2A02] px-4 py-2 rounded-full text-sm font-bold">
+                      <Sparkles size={16} /> Final stage: Strategic Outlook 2027
+                    </div>
+                    <h2 className="text-[32px] font-black tracking-tight leading-tight mt-4">
+                      Proyeksi Masa Depan & Fokus Inovasi 2027
+                    </h2>
+                    <div className="flex-1 min-h-0 mt-4 bg-white/[0.06] border border-white/15 p-5 rounded-2xl overflow-y-auto custom-scrollbar">
+                      <span className="text-sm text-[#A3C400] font-bold flex items-center gap-2 mb-2">
+                        <Flag size={16} /> Catatan Isu & Fokus Perbaikan 2027
+                      </span>
+                      {outlook2027 ? (
+                        <p className="whitespace-pre-line text-xl text-slate-100 leading-relaxed">{outlook2027}</p>
+                      ) : (
+                        <p className="text-lg italic text-slate-400">Belum ada strategic outlook atau isu 2027 yang di-input.</p>
+                      )}
+                    </div>
+                    <div className="pt-4 mt-4 border-t border-white/15 flex items-center justify-between gap-4">
+                      <div>
+                        <h4 className="text-lg font-bold text-[#A3C400] flex items-center gap-2">
+                          <CheckCircle2 size={20} /> Siap Melangkah ke Tahun 2027!
+                        </h4>
+                        <p className="text-sm text-slate-300">Komitmen pertumbuhan berkelanjutan & pencapaian target komersial.</p>
+                      </div>
+                      <button
+                        onClick={() => setCurrentSlide(0)}
+                        className="px-5 py-3 rounded-xl bg-[#A3C400] text-[#1B2A02] font-black text-sm shadow-lg hover:brightness-110 transition cursor-pointer flex items-center gap-2 shrink-0"
+                      >
+                        <RotateCcw size={16} /> Restart
+                      </button>
                     </div>
                   </div>
 
-                  <div className="pt-4 border-t border-white/15 flex items-center justify-between gap-4">
-                    <div className="text-left">
-                      <h4 className="text-lg font-bold text-[#A3C400] flex items-center gap-2">
-                        <CheckCircle2 size={20} /> Siap Melangkah ke Tahun 2027!
-                      </h4>
-                      <p className="text-sm text-slate-300">Komitmen pertumbuhan berkelanjutan & pencapaian target komersial.</p>
+                  <div className="bg-white rounded-3xl shadow-md border border-slate-200 p-5 flex flex-col min-h-0">
+                    <div className="flex items-center gap-2 text-lg font-bold text-[#12324A] mb-3">
+                      <FileText size={20} className="text-[#2B6285]" /> Catatan & Evaluasi Bebas
                     </div>
-                    
-                    <button 
-                      onClick={() => setCurrentSlide(0)}
-                      className="px-6 py-3 rounded-xl bg-[#A3C400] text-[#1B2A02] font-black text-sm shadow-lg hover:brightness-110 transition cursor-pointer flex items-center gap-2"
-                    >
-                      <RotateCcw size={16} /> Restart Presentation
-                    </button>
+                    <div className="flex-1 flex flex-col gap-2.5 min-h-0">
+                      {yearData.map((d, i) => (
+                        <div key={d.yr} className="flex-1 min-h-0 rounded-xl bg-slate-50 border border-slate-200 p-3 flex flex-col">
+                          <div className="mb-1.5"><YearTag yr={d.yr} idx={i} /></div>
+                          <div className="flex-1 overflow-y-auto custom-scrollbar min-h-0">
+                            {d.notes ? (
+                              <p className="text-[15px] text-slate-700 leading-snug whitespace-pre-line">{d.notes}</p>
+                            ) : (
+                              <Empty text={d.rep ? "Belum diisi" : "Belum ada data laporan"} />
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -536,7 +792,7 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
           <ChevronLeft size={16} /> Sebelumnya
         </button>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap justify-center">
           {slideLabels.map((label, idx) => (
             <button
               key={idx}
