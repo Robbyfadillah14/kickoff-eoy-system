@@ -90,15 +90,15 @@ function Empty({ text = "Belum diisi" }) {
   return <span className="text-sm italic text-slate-400">{text}</span>;
 }
 
-/* Timeline besar: bubble per tahun + panah naik/turun vs tahun sebelumnya */
+/* Timeline ringkas: bubble kecil + panah YoY, lalu rincian input per tahun di bawahnya */
 function YearTimeline({ yearData }) {
   const logs = yearData.filter((d) => d.actual > 0).map((d) => Math.log10(d.actual));
   const lo = logs.length ? Math.min(...logs) : 0;
   const hi = logs.length ? Math.max(...logs) : 1;
-  const size = (v) => (v > 0 && hi > lo ? 130 + ((Math.log10(v) - lo) / (hi - lo)) * 100 : 130);
+  const size = (v) => (v > 0 && hi > lo ? 76 + ((Math.log10(v) - lo) / (hi - lo)) * 38 : 76);
 
   return (
-    <div className="grid grid-cols-3 gap-6 flex-1 min-h-0 items-end px-6">
+    <div className="grid grid-cols-3 gap-4 flex-1 min-h-0 px-4">
       {yearData.map((d, i) => {
         const prev = i > 0 ? yearData[i - 1] : null;
         const hasPrev = prev && prev.rep && prev.actual > 0;
@@ -107,47 +107,172 @@ function YearTimeline({ yearData }) {
         const s = size(d.actual);
         const c = YEAR_COLORS[i % YEAR_COLORS.length];
 
+        const topSalesYr = d.sList
+          .map((sp) => {
+            const tgt = toNum(sp.targetProfit || sp.targetVal);
+            const act = toNum(sp.actualVal);
+            return { name: String(sp.salesName || "").trim(), act, ach: tgt > 0 ? (act / tgt) * 100 : 0 };
+          })
+          .filter((x) => x.name)
+          .sort((a, b) => b.act - a.act);
+        const topProdYr = d.products.slice().sort((a, b) => b.currentVal - a.currentVal);
+
         return (
-          <div key={d.yr} className="flex flex-col items-center text-center">
-            <div
-              className="rounded-full flex flex-col items-center justify-center text-white font-black leading-tight shadow-xl"
-              style={{ width: s, height: s, background: `radial-gradient(circle at 30% 25%, ${c}CC, ${c})` }}
-            >
-              <span className="text-[22px] px-2">{d.rep ? formatRupiah(d.actual) : "-"}</span>
-              <span className="text-xs font-semibold opacity-80">realisasi</span>
+          <div key={d.yr} className="flex flex-col min-h-0">
+            {/* ---- bagian atas: bubble + panah + tahun ---- */}
+            <div className="flex flex-col items-center text-center shrink-0">
+              <div className="flex items-center justify-center" style={{ height: 114 }}>
+                <div
+                  className="rounded-full flex flex-col items-center justify-center text-white font-black leading-tight shadow-lg"
+                  style={{ width: s, height: s, background: `radial-gradient(circle at 30% 25%, ${c}CC, ${c})` }}
+                >
+                  <span className="text-[14px] px-1">{d.rep ? formatRupiah(d.actual) : "-"}</span>
+                  <span className="text-[10px] font-semibold opacity-80">realisasi</span>
+                </div>
+              </div>
+              <div
+                className="mt-1 w-[84px] pt-1.5 pb-4 text-white text-[13px] font-black"
+                style={{
+                  clipPath: "polygon(0 0,100% 0,100% 70%,50% 100%,0 70%)",
+                  background:
+                    up === null
+                      ? "linear-gradient(#64748B,#CBD5E1)"
+                      : up
+                      ? "linear-gradient(#2F7A45,#86EFAC)"
+                      : "linear-gradient(#DC2626,#FCA5A5)",
+                }}
+              >
+                {up === null ? "Baseline" : `${up ? "▲" : "▼"} ${Math.abs(delta) > 999 ? ">999" : Math.abs(delta).toFixed(0)}%`}
+              </div>
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className="text-[30px] font-black leading-none" style={{ color: c }}>{d.yr}</span>
+                {d.rep ? (
+                  <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${d.ach >= 100 ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"}`}>
+                    {d.ach >= 100 ? "Tercapai" : "Belum"} · {fmtAch(d.ach)}
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-200 text-slate-500">Belum ada laporan</span>
+                )}
+              </div>
+              <div className="text-[12px] text-slate-500 mt-0.5">Target {d.rep ? formatRupiah(d.target) : "-"}</div>
             </div>
 
-            <div
-              className="mt-3 w-[116px] pt-3 pb-7 text-white text-lg font-black"
-              style={{
-                clipPath: "polygon(0 0,100% 0,100% 70%,50% 100%,0 70%)",
-                background:
-                  up === null
-                    ? "linear-gradient(#64748B,#CBD5E1)"
-                    : up
-                    ? "linear-gradient(#2F7A45,#86EFAC)"
-                    : "linear-gradient(#DC2626,#FCA5A5)",
-              }}
-            >
-              {up === null ? "Baseline" : `${up ? "▲" : "▼"} ${Math.abs(delta) > 999 ? ">999" : Math.abs(delta).toFixed(0)}%`}
-            </div>
+            {/* ---- bagian bawah: rincian sesuai inputan ---- */}
+            <div className="flex-1 min-h-0 mt-2 rounded-xl bg-slate-50 border border-slate-200 p-3 overflow-y-auto custom-scrollbar space-y-2.5" style={{ borderTop: `3px solid ${c}` }}>
+              <div>
+                <div className="text-[11px] font-black uppercase tracking-wide text-[#2B6285] mb-1">Tim Sales ({topSalesYr.length})</div>
+                {topSalesYr.length > 0 ? (
+                  <>
+                    {topSalesYr.slice(0, 3).map((x, k) => (
+                      <div key={k} className="flex justify-between text-[13px] leading-snug">
+                        <span className="truncate max-w-[150px] font-semibold text-slate-800" title={x.name}>{x.name}</span>
+                        <span className={`font-black ${x.ach >= 100 ? "text-[#2F7A45]" : "text-amber-600"}`}>{fmtAch(x.ach)}</span>
+                      </div>
+                    ))}
+                    {topSalesYr.length > 3 && <div className="text-[11px] text-slate-400">+{topSalesYr.length - 3} lainnya</div>}
+                  </>
+                ) : (
+                  <Empty text={d.rep ? "Belum diisi" : "Belum ada laporan"} />
+                )}
+              </div>
 
-            <div className="text-[40px] font-black leading-none mt-2" style={{ color: c }}>{d.yr}</div>
-            <div className="text-[13px] text-slate-500 mt-1">Target {d.rep ? formatRupiah(d.target) : "-"}</div>
-            {d.rep ? (
-              <span className={`mt-2 px-3 py-1 rounded-full text-sm font-bold ${d.ach >= 100 ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"}`}>
-                {d.ach >= 100 ? "Tercapai" : "Belum"} · {fmtAch(d.ach)}
-              </span>
-            ) : (
-              <span className="mt-2 px-3 py-1 rounded-full text-sm font-bold bg-slate-200 text-slate-500">Belum ada laporan</span>
-            )}
-            <div className="flex items-center gap-2 mt-2 text-xs text-slate-600 font-semibold">
-              <span className="px-2 py-0.5 rounded-md bg-slate-100">Tim sales: {d.sList.length}</span>
-              <span className="px-2 py-0.5 rounded-md bg-slate-100">Produk: {d.products.length}</span>
+              <div>
+                <div className="text-[11px] font-black uppercase tracking-wide text-[#2F7A45] mb-1">Produk ({topProdYr.length})</div>
+                {topProdYr.length > 0 ? (
+                  <>
+                    {topProdYr.slice(0, 3).map((x, k) => (
+                      <div key={k} className="flex justify-between items-center gap-2 text-[13px] leading-snug">
+                        <span className="truncate max-w-[110px] font-semibold text-slate-800" title={x.productName}>{x.productName}</span>
+                        <span className="flex items-center gap-1.5">
+                          <span className="font-black text-[#2F7A45]">{formatRupiah(x.currentVal)}</span>
+                          <DeltaChip cur={x.currentVal} prev={x.prevValInput} labelBase="Baseline" />
+                        </span>
+                      </div>
+                    ))}
+                    {topProdYr.length > 3 && <div className="text-[11px] text-slate-400">+{topProdYr.length - 3} lainnya</div>}
+                  </>
+                ) : (
+                  <Empty text={d.rep ? "Belum diisi" : "Belum ada laporan"} />
+                )}
+              </div>
+
+              <div>
+                <div className="text-[11px] font-black uppercase tracking-wide text-[#5B6B00] mb-1">Inovasi</div>
+                {d.innovations ? (
+                  <p className="text-[13px] text-slate-700 leading-snug whitespace-pre-line">{d.innovations}</p>
+                ) : (
+                  <Empty text={d.rep ? "Belum diisi" : "Belum ada laporan"} />
+                )}
+              </div>
             </div>
           </div>
         );
       })}
+    </div>
+  );
+}
+
+/* Cincin progress kecil (achievement) */
+function MiniRing({ pct, color, size = 68 }) {
+  const r = 26;
+  const c = 2 * Math.PI * r;
+  const v = Math.min(Math.max(pct, 0), 100);
+  return (
+    <div className="relative shrink-0" style={{ width: size, height: size }}>
+      <svg viewBox="0 0 64 64" className="w-full h-full -rotate-90">
+        <circle cx="32" cy="32" r={r} fill="none" stroke="#E2E8F0" strokeWidth="7" />
+        <circle cx="32" cy="32" r={r} fill="none" stroke={color} strokeWidth="7" strokeLinecap="round" strokeDasharray={`${(v / 100) * c} ${c}`} />
+      </svg>
+      <span className="absolute inset-0 flex items-center justify-center text-[13px] font-black" style={{ color }}>{fmtAch(pct)}</span>
+    </div>
+  );
+}
+
+/* Header kolom tahun (gradasi berwarna + total tahun itu) */
+function YearColHeaders({ yearData, label, sub }) {
+  return (
+    <div className="grid grid-cols-[230px_1fr_1fr_1fr] gap-3 shrink-0">
+      <div className="flex flex-col justify-center px-2">
+        <div className="text-[15px] font-black text-[#12324A] leading-tight">{label}</div>
+        <div className="text-[12px] text-slate-500">{sub}</div>
+      </div>
+      {yearData.map((d, i) => {
+        const c = YEAR_COLORS[i % YEAR_COLORS.length];
+        return (
+          <div key={d.yr} className="rounded-xl px-4 py-2 text-white flex items-center justify-between shadow-md" style={{ background: `linear-gradient(135deg, ${c}, ${c}B3)` }}>
+            <span className="text-[28px] font-black leading-none">{d.yr}</span>
+            <div className="text-right leading-tight">
+              <div className="text-[16px] font-black">{d.rep ? formatRupiah(d.actual) : "-"}</div>
+              <div className="text-[11px] opacity-90">{d.rep ? `Total · ${fmtAch(d.ach)} dari target` : "Belum ada laporan"}</div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function EmptyCell() {
+  return (
+    <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50/60 flex items-center justify-center">
+      <span className="text-[13px] italic text-slate-400">Belum ada data</span>
+    </div>
+  );
+}
+
+function RowIdentity({ name, rank, total, extra }) {
+  const initial = (name || "?").trim().charAt(0).toUpperCase();
+  return (
+    <div className="flex items-center gap-3 pl-1 pr-2 min-w-0">
+      <div className="relative shrink-0">
+        <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-xl font-black text-white shadow-md" style={{ background: "linear-gradient(135deg,#12324A,#2B6285)" }}>{initial}</div>
+        {rank === 0 && <span className="absolute -top-2 -right-2 text-[15px]">🏆</span>}
+      </div>
+      <div className="min-w-0">
+        <div className="text-[17px] font-black text-[#12324A] leading-tight truncate" title={name}>{name}</div>
+        <div className="text-[12px] text-slate-500 truncate">Total {formatRupiah(total)}</div>
+        {extra}
+      </div>
     </div>
   );
 }
@@ -550,9 +675,9 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
                 <SlideHeader
                   icon={<Calendar size={22} />}
                   title="Perjalanan Kinerja 2024 – 2026"
-                  subtitle="Realisasi per tahun · panah menunjukkan naik / turun dibanding tahun sebelumnya"
+                  subtitle="Realisasi per tahun, panah = naik / turun vs tahun sebelumnya, rincian input di bawahnya"
                 />
-                <div className="flex-1 min-h-0 bg-white rounded-2xl shadow-md border border-slate-200 py-4 flex flex-col">
+                <div className="flex-1 min-h-0 bg-white rounded-2xl shadow-md border border-slate-200 py-3 flex flex-col">
                   <YearTimeline yearData={yearData} />
                 </div>
               </div>
@@ -566,47 +691,43 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
                   title="Tim Sales"
                   subtitle={`Pencapaian per personel / brand · ${salesRows.length} personel · ${salesType === "OMZET" ? "Omzet" : "Profit"} oriented`}
                 />
-                <div className="flex-1 min-h-0 bg-white rounded-2xl shadow-md border border-slate-200 p-4 flex flex-col">
-                  <div className="grid grid-cols-[210px_1fr_1fr_1fr] gap-3 pb-2 border-b border-slate-200 shrink-0">
-                    <div className="text-sm font-bold text-slate-500">Sales / Brand</div>
-                    {historicalYears.map((y, i) => (
-                      <div key={y}><YearTag yr={y} idx={i} /></div>
-                    ))}
-                  </div>
-                  <div className="flex-1 overflow-y-auto custom-scrollbar min-h-0">
-                    {salesRows.length > 0 ? salesRows.map((row) => (
-                      <div key={row.name} className="grid grid-cols-[210px_1fr_1fr_1fr] gap-3 py-2.5 border-b border-slate-100 items-stretch">
-                        <div className="flex items-center font-black text-[#12324A] text-base leading-tight pr-2" title={row.name}>
-                          <span className="line-clamp-2">{row.name}</span>
-                        </div>
-                        {row.cells.map((cell, yi) => {
-                          if (!cell) {
-                            return <div key={yi} className="rounded-xl bg-slate-50 border border-dashed border-slate-200 flex items-center justify-center"><Empty text="—" /></div>;
-                          }
-                          const ach = cell.tgt > 0 ? (cell.act / cell.tgt) * 100 : 0;
-                          const prevCell = yi > 0 ? row.cells[yi - 1] : null;
-                          return (
-                            <div key={yi} className="rounded-xl bg-slate-50 border border-slate-200 p-2.5 space-y-1">
-                              <div className="flex items-center justify-between">
-                                <span className={`text-xl font-black ${ach >= 100 ? "text-[#2F7A45]" : "text-amber-600"}`}>{fmtAch(ach)}</span>
+                <YearColHeaders yearData={yearData} label="Sales / Brand" sub="urut total revenue" />
+                <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar flex flex-col gap-3 pr-1">
+                  {salesRows.length > 0 ? salesRows.map((row, ri) => (
+                    <div
+                      key={row.name}
+                      className="grid grid-cols-[230px_1fr_1fr_1fr] gap-3 bg-white rounded-2xl shadow-md border border-slate-200 p-3 items-stretch"
+                      style={{ flex: "1 1 0", minHeight: 108, maxHeight: 190 }}
+                    >
+                      <RowIdentity name={row.name} rank={ri} total={row.total} />
+                      {row.cells.map((cell, yi) => {
+                        if (!cell) return <EmptyCell key={yi} />;
+                        const ach = cell.tgt > 0 ? (cell.act / cell.tgt) * 100 : 0;
+                        const prevCell = yi > 0 ? row.cells[yi - 1] : null;
+                        const ok = ach >= 100;
+                        return (
+                          <div key={yi} className="rounded-xl bg-slate-50 border border-slate-200 px-3 flex items-center gap-3 min-w-0" style={{ borderLeft: `4px solid ${YEAR_COLORS[yi]}` }}>
+                            <MiniRing pct={ach} color={ok ? "#2F7A45" : "#D97706"} />
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-[19px] font-black text-[#12324A] truncate">{formatRupiah(cell.act)}</span>
                                 <DeltaChip cur={cell.act} prev={prevCell ? prevCell.act : 0} />
                               </div>
-                              <div className="h-1.5 rounded-full bg-slate-200 overflow-hidden">
-                                <div className={`h-full rounded-full ${ach >= 100 ? "bg-[#7FA800]" : "bg-amber-500"}`} style={{ width: `${Math.min(ach, 100)}%` }} />
+                              <div className="text-[12px] text-slate-500">Target {formatRupiah(cell.tgt)}</div>
+                              <div className="mt-0.5">
+                                <span className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-bold ${ok ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>
+                                  {ok ? "Tercapai" : "Belum tercapai"}
+                                </span>
                               </div>
-                              <div className="flex justify-between text-[11px] text-slate-600">
-                                <span>Tgt <b className="text-[#2B6285]">{formatRupiah(cell.tgt)}</b></span>
-                                <span>Akt <b className="text-[#2F7A45]">{formatRupiah(cell.act)}</b></span>
-                              </div>
-                              {cell.note && <div className="text-[11px] italic text-slate-500 truncate" title={cell.note}>“{cell.note}”</div>}
+                              {cell.note && <div className="text-[12px] italic text-slate-500 truncate mt-0.5" title={cell.note}>“{cell.note}”</div>}
                             </div>
-                          );
-                        })}
-                      </div>
-                    )) : (
-                      <div className="py-10 text-center"><Empty text="Belum ada data sales." /></div>
-                    )}
-                  </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )) : (
+                    <div className="py-10 text-center"><Empty text="Belum ada data sales." /></div>
+                  )}
                 </div>
               </div>
             )}
@@ -619,38 +740,62 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
                   title="Top Produk / Item Group"
                   subtitle={`Penjualan berjalan vs tahun lalu · ${prodRows.length} item group`}
                 />
-                <div className="flex-1 min-h-0 bg-white rounded-2xl shadow-md border border-slate-200 p-4 flex flex-col">
-                  <div className="grid grid-cols-[210px_1fr_1fr_1fr] gap-3 pb-2 border-b border-slate-200 shrink-0">
-                    <div className="text-sm font-bold text-slate-500">Item group</div>
-                    {historicalYears.map((y, i) => (
-                      <div key={y}><YearTag yr={y} idx={i} /></div>
-                    ))}
-                  </div>
-                  <div className="flex-1 overflow-y-auto custom-scrollbar min-h-0">
-                    {prodRows.length > 0 ? prodRows.map((row) => (
-                      <div key={row.name} className="grid grid-cols-[210px_1fr_1fr_1fr] gap-3 py-2.5 border-b border-slate-100 items-stretch">
-                        <div className="flex items-center font-black text-[#12324A] text-base leading-tight pr-2" title={row.name}>
-                          <span className="line-clamp-2">{row.name}</span>
-                        </div>
-                        {row.cells.map((cell, yi) => {
-                          if (!cell) {
-                            return <div key={yi} className="rounded-xl bg-slate-50 border border-dashed border-slate-200 flex items-center justify-center"><Empty text="—" /></div>;
+                <YearColHeaders yearData={yearData} label="Item group" sub="urut total penjualan" />
+                <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar flex flex-col gap-3 pr-1">
+                  {prodRows.length > 0 ? prodRows.map((row, ri) => {
+                    const grand = prodRows.reduce((a, r) => a + r.total, 0);
+                    const share = grand > 0 ? (row.total / grand) * 100 : 0;
+                    return (
+                      <div
+                        key={row.name}
+                        className="grid grid-cols-[230px_1fr_1fr_1fr] gap-3 bg-white rounded-2xl shadow-md border border-slate-200 p-3 items-stretch"
+                        style={{ flex: "1 1 0", minHeight: 108, maxHeight: 190 }}
+                      >
+                        <RowIdentity
+                          name={row.name}
+                          rank={ri}
+                          total={row.total}
+                          extra={
+                            <div className="mt-1 flex items-center gap-2">
+                              <div className="w-20 h-1.5 rounded-full bg-slate-200 overflow-hidden">
+                                <div className="h-full rounded-full bg-[#7FA800]" style={{ width: `${Math.min(share, 100)}%` }} />
+                              </div>
+                              <span className="text-[11px] font-bold text-slate-500">{share.toFixed(0)}%</span>
+                            </div>
                           }
+                        />
+                        {row.cells.map((cell, yi) => {
+                          if (!cell) return <EmptyCell key={yi} />;
+                          const c = YEAR_COLORS[yi];
+                          const mx = Math.max(cell.cur, cell.prev, 1);
                           return (
-                            <div key={yi} className="rounded-xl bg-slate-50 border border-slate-200 p-2.5 space-y-1">
-                              <div className="flex items-center justify-between">
-                                <span className="text-lg font-black text-[#2F7A45]">{formatRupiah(cell.cur)}</span>
+                            <div key={yi} className="rounded-xl bg-slate-50 border border-slate-200 px-3 py-2 flex flex-col justify-center gap-1.5 min-w-0" style={{ borderLeft: `4px solid ${c}` }}>
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-[20px] font-black truncate" style={{ color: c }}>{formatRupiah(cell.cur)}</span>
                                 <DeltaChip cur={cell.cur} prev={cell.prev} labelBase="Baseline 🚀" />
                               </div>
-                              <div className="text-[11px] text-slate-600">Lalu: <b>{formatRupiah(cell.prev)}</b></div>
+                              <div className="flex items-center gap-2">
+                                <span className="w-[54px] text-[11px] text-slate-500">Berjalan</span>
+                                <div className="flex-1 h-2.5 rounded-full bg-slate-200 overflow-hidden">
+                                  <div className="h-full rounded-full" style={{ width: `${(cell.cur / mx) * 100}%`, background: c }} />
+                                </div>
+                                <span className="w-[62px]" />
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="w-[54px] text-[11px] text-slate-500">Lalu</span>
+                                <div className="flex-1 h-2.5 rounded-full bg-slate-200 overflow-hidden">
+                                  <div className="h-full rounded-full bg-slate-400" style={{ width: `${(cell.prev / mx) * 100}%` }} />
+                                </div>
+                                <span className="w-[62px] text-right text-[11px] font-bold text-slate-600">{formatRupiah(cell.prev)}</span>
+                              </div>
                             </div>
                           );
                         })}
                       </div>
-                    )) : (
-                      <div className="py-10 text-center"><Empty text="Belum ada data produk." /></div>
-                    )}
-                  </div>
+                    );
+                  }) : (
+                    <div className="py-10 text-center"><Empty text="Belum ada data produk." /></div>
+                  )}
                 </div>
               </div>
             )}
@@ -663,19 +808,45 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
                   title="Inovasi & Terobosan Komersial"
                   subtitle="Program baru, efisiensi, dan rencana aksi dari tahun ke tahun"
                 />
-                <div className="flex-1 min-h-0 grid grid-cols-3 gap-4">
-                  {yearData.map((d, i) => (
-                    <div key={d.yr} className="bg-white rounded-2xl shadow-md border border-slate-200 flex flex-col min-h-0 overflow-hidden">
-                      <div className="px-5 py-3 text-white font-black text-2xl" style={{ background: YEAR_COLORS[i] }}>{d.yr}</div>
-                      <div className="flex-1 overflow-y-auto custom-scrollbar p-5 min-h-0">
-                        {d.innovations ? (
-                          <p className="text-[18px] text-slate-700 leading-relaxed whitespace-pre-line">{d.innovations}</p>
-                        ) : (
-                          <Empty text={d.rep ? "Belum diisi" : "Belum ada data laporan"} />
-                        )}
+                <div className="flex-1 min-h-0 grid grid-cols-3 gap-5">
+                  {yearData.map((d, i) => {
+                    const c = YEAR_COLORS[i % YEAR_COLORS.length];
+                    const prev = i > 0 ? yearData[i - 1] : null;
+                    return (
+                      <div key={d.yr} className="relative bg-white rounded-3xl shadow-lg border border-slate-200 flex flex-col min-h-0 overflow-hidden">
+                        <div className="px-6 py-4 text-white flex items-center justify-between" style={{ background: `linear-gradient(135deg, ${c}, ${c}B3)` }}>
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center"><Zap size={20} /></div>
+                            <span className="text-[34px] font-black leading-none">{d.yr}</span>
+                          </div>
+                          <span className="px-3 py-1 rounded-full text-xs font-bold bg-white/20">{d.rep ? "Logged" : "Kosong"}</span>
+                        </div>
+                        <span className="absolute right-4 top-16 text-[130px] font-black leading-none pointer-events-none select-none" style={{ color: c, opacity: 0.06 }}>
+                          {String(d.yr).slice(2)}
+                        </span>
+                        <div className="relative flex-1 overflow-y-auto custom-scrollbar p-6 min-h-0">
+                          {d.innovations ? (
+                            <>
+                              <div className="text-[44px] leading-none font-black -mb-1" style={{ color: c }}>“</div>
+                              <p className="text-[19px] text-slate-700 leading-relaxed whitespace-pre-line">{d.innovations}</p>
+                            </>
+                          ) : (
+                            <div className="h-full flex flex-col items-center justify-center text-center gap-2">
+                              <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-300"><Zap size={26} /></div>
+                              <Empty text={d.rep ? "Belum diisi" : "Belum ada data laporan"} />
+                            </div>
+                          )}
+                        </div>
+                        <div className="px-6 py-3 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
+                          <div>
+                            <div className="text-[11px] text-slate-500">Revenue {d.yr}</div>
+                            <div className="text-[19px] font-black leading-tight" style={{ color: c }}>{d.rep ? formatRupiah(d.actual) : "-"}</div>
+                          </div>
+                          {d.rep && <DeltaChip cur={d.actual} prev={prev ? prev.actual : 0} />}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -688,29 +859,40 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
                   title="Sales Support & Operasional Pendukung"
                   subtitle="Administrasi PO, koordinasi DO & piutang, serta evaluasi kendala"
                 />
-                <div className="flex-1 min-h-0 grid grid-cols-3 gap-4">
+                <YearColHeaders yearData={yearData} label="Aspek" sub="per tahun" />
+                <div className="flex-1 min-h-0 flex flex-col gap-3">
                   {[
-                    { key: "supportPo", title: "Input & Verifikasi PO Masuk", sub: "Max 1 hari" },
-                    { key: "supportCoord", title: "Koordinasi DO & Follow Up Piutang", sub: "Sinkronisasi tim AR & shipment" },
-                    { key: "supportEval", title: "Evaluasi Kendala", sub: "Internal / eksternal" },
-                  ].map((col) => (
-                    <div key={col.key} className="bg-white rounded-2xl shadow-md border border-slate-200 p-4 flex flex-col min-h-0">
-                      <div className="text-base font-bold text-[#12324A] leading-tight">{col.title}</div>
-                      <div className="text-xs text-slate-500 mb-2">{col.sub}</div>
-                      <div className="flex-1 flex flex-col gap-2.5 min-h-0">
-                        {yearData.map((d, i) => (
-                          <div key={d.yr} className="flex-1 min-h-0 rounded-xl bg-slate-50 border border-slate-200 p-3 flex flex-col">
-                            <div className="mb-1.5"><YearTag yr={d.yr} idx={i} /></div>
-                            <div className="flex-1 overflow-y-auto custom-scrollbar min-h-0">
-                              {d[col.key] ? (
-                                <p className="text-[15px] text-slate-700 leading-snug whitespace-pre-line">{d[col.key]}</p>
-                              ) : (
-                                <Empty text={d.rep ? "Belum diisi" : "Belum ada data laporan"} />
-                              )}
-                            </div>
-                          </div>
-                        ))}
+                    { key: "supportPo", title: "Input & Verifikasi PO Masuk", sub: "Target max 1 hari", icon: <FileText size={22} />, g: "linear-gradient(135deg,#12324A,#2B6285)" },
+                    { key: "supportCoord", title: "Koordinasi DO & Piutang", sub: "Sinkronisasi tim AR & shipment", icon: <BarChart3 size={22} />, g: "linear-gradient(135deg,#1F5A34,#2F7A45)" },
+                    { key: "supportEval", title: "Evaluasi Kendala", sub: "Internal / eksternal", icon: <Flag size={22} />, g: "linear-gradient(135deg,#7A5600,#C98A00)" },
+                  ].map((row) => (
+                    <div
+                      key={row.key}
+                      className="grid grid-cols-[230px_1fr_1fr_1fr] gap-3 bg-white rounded-2xl shadow-md border border-slate-200 p-3 overflow-hidden"
+                      style={{ flex: "1 1 0", minHeight: 0, gridTemplateRows: "minmax(0,1fr)" }}
+                    >
+                      <div className="flex items-center gap-3 pl-1 pr-2 min-w-0">
+                        <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-md shrink-0" style={{ background: row.g }}>{row.icon}</div>
+                        <div className="min-w-0">
+                          <div className="text-[16px] font-black text-[#12324A] leading-tight">{row.title}</div>
+                          <div className="text-[12px] text-slate-500 leading-tight mt-0.5">{row.sub}</div>
+                        </div>
                       </div>
+                      {yearData.map((d, yi) => {
+                        const txt = d[row.key];
+                        if (!txt) {
+                          return (
+                            <div key={d.yr} className="rounded-xl border border-dashed border-slate-300 bg-slate-50/60 flex items-center justify-center">
+                              <span className="text-[13px] italic text-slate-400">{d.rep ? "Belum diisi" : "Belum ada laporan"}</span>
+                            </div>
+                          );
+                        }
+                        return (
+                          <div key={d.yr} className="rounded-xl bg-slate-50 border border-slate-200 px-4 py-2.5 overflow-y-auto custom-scrollbar min-h-0" style={{ borderLeft: `4px solid ${YEAR_COLORS[yi]}` }}>
+                            <p className="text-[15px] text-slate-700 leading-snug whitespace-pre-line">{txt}</p>
+                          </div>
+                        );
+                      })}
                     </div>
                   ))}
                 </div>
@@ -720,16 +902,18 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
             {/* ============ SLIDE 7: OUTLOOK 2027 + CATATAN ============ */}
             {currentSlide === 6 && (
               <div className="absolute inset-0 p-6 flex flex-col gap-3 animate-fadeIn">
-                <div className="flex-1 min-h-0 grid grid-cols-[1.4fr_1fr] gap-4">
-                  <div className="bg-[#12324A] text-white border border-[#2B6285] p-7 rounded-3xl shadow-2xl relative overflow-hidden flex flex-col min-h-0">
+                <div className="flex-1 min-h-0 grid grid-cols-[1.4fr_1fr] gap-5">
+                  <div className="bg-[#12324A] text-white border border-[#2B6285] p-8 rounded-3xl shadow-2xl relative overflow-hidden flex flex-col min-h-0">
                     <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-[#2B6285] via-[#A3C400] to-[#2F7A45]"></div>
-                    <div className="inline-flex self-start items-center gap-2 bg-[#A3C400] text-[#1B2A02] px-4 py-2 rounded-full text-sm font-bold">
+                    <div className="absolute -right-16 -top-16 w-72 h-72 rounded-full pointer-events-none" style={{ background: "radial-gradient(circle, rgba(163,196,0,0.22), transparent 70%)" }} />
+                    <span className="absolute right-6 bottom-20 text-[150px] font-black leading-none pointer-events-none select-none text-white" style={{ opacity: 0.04 }}>2027</span>
+                    <div className="relative inline-flex self-start items-center gap-2 bg-[#A3C400] text-[#1B2A02] px-4 py-2 rounded-full text-sm font-bold">
                       <Sparkles size={16} /> Final stage: Strategic Outlook 2027
                     </div>
-                    <h2 className="text-[32px] font-black tracking-tight leading-tight mt-4">
+                    <h2 className="relative text-[32px] font-black tracking-tight leading-tight mt-4">
                       Proyeksi Masa Depan & Fokus Inovasi 2027
                     </h2>
-                    <div className="flex-1 min-h-0 mt-4 bg-white/[0.06] border border-white/15 p-5 rounded-2xl overflow-y-auto custom-scrollbar">
+                    <div className="relative flex-1 min-h-0 mt-4 bg-white/[0.07] border border-white/15 p-5 rounded-2xl overflow-y-auto custom-scrollbar">
                       <span className="text-sm text-[#A3C400] font-bold flex items-center gap-2 mb-2">
                         <Flag size={16} /> Catatan Isu & Fokus Perbaikan 2027
                       </span>
@@ -739,7 +923,7 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
                         <p className="text-lg italic text-slate-400">Belum ada strategic outlook atau isu 2027 yang di-input.</p>
                       )}
                     </div>
-                    <div className="pt-4 mt-4 border-t border-white/15 flex items-center justify-between gap-4">
+                    <div className="relative pt-4 mt-4 border-t border-white/15 flex items-center justify-between gap-4">
                       <div>
                         <h4 className="text-lg font-bold text-[#A3C400] flex items-center gap-2">
                           <CheckCircle2 size={20} /> Siap Melangkah ke Tahun 2027!
@@ -755,13 +939,17 @@ export default function CommercialProfitDeck({ report, allYearlyReports = {} }) 
                     </div>
                   </div>
 
-                  <div className="bg-white rounded-3xl shadow-md border border-slate-200 p-5 flex flex-col min-h-0">
-                    <div className="flex items-center gap-2 text-lg font-bold text-[#12324A] mb-3">
-                      <FileText size={20} className="text-[#2B6285]" /> Catatan & Evaluasi Bebas
+                  <div className="bg-white rounded-3xl shadow-lg border border-slate-200 p-5 flex flex-col min-h-0">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-10 h-10 rounded-xl bg-[#12324A] text-[#A3C400] flex items-center justify-center"><FileText size={20} /></div>
+                      <div>
+                        <div className="text-lg font-black text-[#12324A] leading-none">Catatan & Evaluasi Bebas</div>
+                        <div className="text-xs text-slate-500 mt-1">Dari departemen per tahun</div>
+                      </div>
                     </div>
                     <div className="flex-1 flex flex-col gap-2.5 min-h-0">
                       {yearData.map((d, i) => (
-                        <div key={d.yr} className="flex-1 min-h-0 rounded-xl bg-slate-50 border border-slate-200 p-3 flex flex-col">
+                        <div key={d.yr} className="flex-1 min-h-0 rounded-xl bg-slate-50 border border-slate-200 p-3 flex flex-col" style={{ borderLeft: `4px solid ${YEAR_COLORS[i]}` }}>
                           <div className="mb-1.5"><YearTag yr={d.yr} idx={i} /></div>
                           <div className="flex-1 overflow-y-auto custom-scrollbar min-h-0">
                             {d.notes ? (
