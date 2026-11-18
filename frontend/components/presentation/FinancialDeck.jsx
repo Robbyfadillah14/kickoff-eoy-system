@@ -4,7 +4,7 @@ import {
   ChevronLeft, ChevronRight, Play, Pause, RotateCcw, 
   Activity, ShieldCheck, Zap, Package, FileText, Globe, 
   AlertTriangle, CheckCircle2, Award, Clock, Target, 
-  TrendingUp, TrendingDown, Wallet, Receipt, Percent
+  TrendingUp, TrendingDown, Wallet, Receipt, Percent, Calendar
 } from "lucide-react";
 
 /* ------------------------------------------------------------------ */
