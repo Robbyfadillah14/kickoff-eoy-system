@@ -90,124 +90,189 @@ function Empty({ text = "Belum diisi" }) {
   return <span className="text-sm italic text-slate-400">{text}</span>;
 }
 
-/* Timeline ringkas: bubble kecil + panah YoY, lalu rincian input per tahun di bawahnya */
+/* Timeline "journey": rel bubble + konektor naik/turun antar tahun + rincian per tahun */
+function SectionTitle({ color, children, right }) {
+  return (
+    <div className="flex items-center justify-between mb-1.5">
+      <div className="flex items-center gap-2">
+        <span className="w-1.5 h-4 rounded-full" style={{ background: color }} />
+        <span className="text-[12px] font-black uppercase tracking-wider text-slate-600">{children}</span>
+      </div>
+      {right && <span className="text-[11px] font-semibold text-slate-400">{right}</span>}
+    </div>
+  );
+}
+
+function LinkChip({ cur, prev, fromYr }) {
+  const d = prev && prev.rep && prev.actual > 0 ? pctDelta(cur.actual, prev.actual) : null;
+  if (d === null) {
+    return (
+      <div className="px-3 py-1 rounded-full bg-white border-2 border-slate-300 text-slate-400 font-black text-sm shadow-md">—</div>
+    );
+  }
+  const up = d >= 0;
+  const col = up ? "#2F7A45" : "#DC2626";
+  return (
+    <div className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white border-2 shadow-lg whitespace-nowrap" style={{ borderColor: col, color: col }}>
+      <span className="text-[15px] font-black">{up ? "▲" : "▼"} {Math.abs(d) > 999 ? ">999" : Math.abs(d).toFixed(0)}%</span>
+      <span className="text-[10px] font-semibold text-slate-500">vs {fromYr}</span>
+    </div>
+  );
+}
+
 function YearTimeline({ yearData }) {
   const logs = yearData.filter((d) => d.actual > 0).map((d) => Math.log10(d.actual));
   const lo = logs.length ? Math.min(...logs) : 0;
   const hi = logs.length ? Math.max(...logs) : 1;
-  const size = (v) => (v > 0 && hi > lo ? 76 + ((Math.log10(v) - lo) / (hi - lo)) * 38 : 76);
+  const size = (v) => (v > 0 && hi > lo ? 112 + ((Math.log10(v) - lo) / (hi - lo)) * 40 : 112);
 
   return (
-    <div className="grid grid-cols-3 gap-4 flex-1 min-h-0 px-4">
-      {yearData.map((d, i) => {
-        const prev = i > 0 ? yearData[i - 1] : null;
-        const hasPrev = prev && prev.rep && prev.actual > 0;
-        const delta = hasPrev ? pctDelta(d.actual, prev.actual) : null;
-        const up = delta === null ? null : delta >= 0;
-        const s = size(d.actual);
-        const c = YEAR_COLORS[i % YEAR_COLORS.length];
-
-        const topSalesYr = d.sList
-          .map((sp) => {
-            const tgt = toNum(sp.targetProfit || sp.targetVal);
-            const act = toNum(sp.actualVal);
-            return { name: String(sp.salesName || "").trim(), act, ach: tgt > 0 ? (act / tgt) * 100 : 0 };
-          })
-          .filter((x) => x.name)
-          .sort((a, b) => b.act - a.act);
-        const topProdYr = d.products.slice().sort((a, b) => b.currentVal - a.currentVal);
-
-        return (
-          <div key={d.yr} className="flex flex-col min-h-0">
-            {/* ---- bagian atas: bubble + panah + tahun ---- */}
-            <div className="flex flex-col items-center text-center shrink-0">
-              <div className="flex items-center justify-center" style={{ height: 114 }}>
+    <div className="flex-1 min-h-0 flex flex-col gap-2 px-5">
+      {/* ---------- BARIS 1: rail + bubble + konektor ---------- */}
+      <div className="relative grid grid-cols-3 gap-5 shrink-0" style={{ height: 172 }}>
+        <div
+          className="absolute z-0 h-[6px] rounded-full"
+          style={{
+            left: "16.66%", right: "16.66%", top: "calc(50% - 3px)",
+            background: `linear-gradient(90deg, ${YEAR_COLORS[0]}, ${YEAR_COLORS[1]}, ${YEAR_COLORS[2]})`,
+            opacity: 0.45,
+          }}
+        />
+        {[1, 2].map((k) => (
+          <div key={k} className="absolute z-20" style={{ left: `${(k * 100) / 3}%`, top: "50%", transform: "translate(-50%,-50%)" }}>
+            <LinkChip cur={yearData[k]} prev={yearData[k - 1]} fromYr={yearData[k - 1].yr} />
+          </div>
+        ))}
+        {yearData.map((d, i) => {
+          const c = YEAR_COLORS[i % YEAR_COLORS.length];
+          const s = size(d.actual);
+          const W = s + 20;
+          const R = 46;
+          const C = 2 * Math.PI * R;
+          const v = Math.min(Math.max(d.ach, 0), 100);
+          return (
+            <div key={d.yr} className="relative z-10 flex items-center justify-center">
+              <div className="relative" style={{ width: W, height: W }}>
+                <svg viewBox="0 0 100 100" className="absolute inset-0 w-full h-full -rotate-90">
+                  <circle cx="50" cy="50" r={R} fill="white" stroke={`${c}26`} strokeWidth="5" />
+                  {d.rep && (
+                    <circle cx="50" cy="50" r={R} fill="none" stroke={c} strokeWidth="5" strokeLinecap="round" strokeDasharray={`${(v / 100) * C} ${C}`} />
+                  )}
+                </svg>
                 <div
-                  className="rounded-full flex flex-col items-center justify-center text-white font-black leading-tight shadow-lg"
-                  style={{ width: s, height: s, background: `radial-gradient(circle at 30% 25%, ${c}CC, ${c})` }}
+                  className="absolute rounded-full flex flex-col items-center justify-center text-white font-black leading-tight shadow-lg"
+                  style={{ inset: 10, background: `radial-gradient(circle at 30% 25%, ${c}CC, ${c})` }}
                 >
-                  <span className="text-[14px] px-1">{d.rep ? formatRupiah(d.actual) : "-"}</span>
+                  <span className="text-[19px] px-1">{d.rep ? formatRupiah(d.actual) : "-"}</span>
                   <span className="text-[10px] font-semibold opacity-80">realisasi</span>
                 </div>
               </div>
-              <div
-                className="mt-1 w-[84px] pt-1.5 pb-4 text-white text-[13px] font-black"
-                style={{
-                  clipPath: "polygon(0 0,100% 0,100% 70%,50% 100%,0 70%)",
-                  background:
-                    up === null
-                      ? "linear-gradient(#64748B,#CBD5E1)"
-                      : up
-                      ? "linear-gradient(#2F7A45,#86EFAC)"
-                      : "linear-gradient(#DC2626,#FCA5A5)",
-                }}
-              >
-                {up === null ? "Baseline" : `${up ? "▲" : "▼"} ${Math.abs(delta) > 999 ? ">999" : Math.abs(delta).toFixed(0)}%`}
-              </div>
-              <div className="flex items-center gap-2 mt-0.5">
-                <span className="text-[30px] font-black leading-none" style={{ color: c }}>{d.yr}</span>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* ---------- BARIS 2: tahun + status + target ---------- */}
+      <div className="grid grid-cols-3 gap-5 shrink-0">
+        {yearData.map((d, i) => {
+          const c = YEAR_COLORS[i % YEAR_COLORS.length];
+          return (
+            <div key={d.yr} className="flex flex-col items-center text-center">
+              <div className="flex items-center gap-2">
+                <span className="text-[36px] font-black leading-none" style={{ color: c }}>{d.yr}</span>
                 {d.rep ? (
-                  <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${d.ach >= 100 ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"}`}>
+                  <span className={`px-2.5 py-0.5 rounded-full text-[12px] font-bold ${d.ach >= 100 ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"}`}>
                     {d.ach >= 100 ? "Tercapai" : "Belum"} · {fmtAch(d.ach)}
                   </span>
                 ) : (
-                  <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-200 text-slate-500">Belum ada laporan</span>
+                  <span className="px-2.5 py-0.5 rounded-full text-[12px] font-bold bg-slate-200 text-slate-500">Belum ada laporan</span>
                 )}
               </div>
               <div className="text-[12px] text-slate-500 mt-0.5">Target {d.rep ? formatRupiah(d.target) : "-"}</div>
             </div>
+          );
+        })}
+      </div>
 
-            {/* ---- bagian bawah: rincian sesuai inputan ---- */}
-            <div className="flex-1 min-h-0 mt-2 rounded-xl bg-slate-50 border border-slate-200 p-3 overflow-y-auto custom-scrollbar space-y-2.5" style={{ borderTop: `3px solid ${c}` }}>
+      {/* ---------- BARIS 3: rincian input per tahun ---------- */}
+      <div className="grid grid-cols-3 gap-5 flex-1 min-h-0 pb-1">
+        {yearData.map((d, i) => {
+          const c = YEAR_COLORS[i % YEAR_COLORS.length];
+          const salesYr = d.sList
+            .map((sp) => {
+              const tgt = toNum(sp.targetProfit || sp.targetVal);
+              const act = toNum(sp.actualVal);
+              return { name: String(sp.salesName || "").trim(), act, ach: tgt > 0 ? (act / tgt) * 100 : 0 };
+            })
+            .filter((x) => x.name)
+            .sort((a, b) => b.act - a.act);
+          const prodYr = d.products.slice().sort((a, b) => b.currentVal - a.currentVal);
+          const maxProd = Math.max(...prodYr.map((x) => x.currentVal), 1);
+
+          return (
+            <div
+              key={d.yr}
+              className="rounded-2xl bg-white border border-slate-200 shadow-md p-4 flex flex-col justify-between gap-2 min-h-0 overflow-y-auto custom-scrollbar"
+              style={{ borderTop: `4px solid ${c}` }}
+            >
+              {/* Tim Sales */}
               <div>
-                <div className="text-[11px] font-black uppercase tracking-wide text-[#2B6285] mb-1">Tim Sales ({topSalesYr.length})</div>
-                {topSalesYr.length > 0 ? (
-                  <>
-                    {topSalesYr.slice(0, 3).map((x, k) => (
-                      <div key={k} className="flex justify-between text-[13px] leading-snug">
-                        <span className="truncate max-w-[150px] font-semibold text-slate-800" title={x.name}>{x.name}</span>
-                        <span className={`font-black ${x.ach >= 100 ? "text-[#2F7A45]" : "text-amber-600"}`}>{fmtAch(x.ach)}</span>
+                <SectionTitle color="#2B6285" right={`${salesYr.length} personel`}>Tim Sales</SectionTitle>
+                {salesYr.length > 0 ? (
+                  <div className="space-y-1.5">
+                    {salesYr.slice(0, 3).map((x, k) => (
+                      <div key={k} className="flex items-center gap-2.5">
+                        <span className="w-[88px] truncate text-[14px] font-bold text-slate-800" title={x.name}>{x.name}</span>
+                        <div className="flex-1 h-2.5 rounded-full bg-slate-100 overflow-hidden">
+                          <div className="h-full rounded-full" style={{ width: `${Math.min(x.ach, 100)}%`, background: x.ach >= 100 ? "#7FA800" : "#F59E0B" }} />
+                        </div>
+                        <span className={`w-[52px] text-right text-[14px] font-black ${x.ach >= 100 ? "text-[#2F7A45]" : "text-amber-600"}`}>{fmtAch(x.ach)}</span>
                       </div>
                     ))}
-                    {topSalesYr.length > 3 && <div className="text-[11px] text-slate-400">+{topSalesYr.length - 3} lainnya</div>}
-                  </>
+                    {salesYr.length > 3 && <div className="text-[11px] text-slate-400">+{salesYr.length - 3} lainnya</div>}
+                  </div>
                 ) : (
                   <Empty text={d.rep ? "Belum diisi" : "Belum ada laporan"} />
                 )}
               </div>
 
+              {/* Produk */}
               <div>
-                <div className="text-[11px] font-black uppercase tracking-wide text-[#2F7A45] mb-1">Produk ({topProdYr.length})</div>
-                {topProdYr.length > 0 ? (
-                  <>
-                    {topProdYr.slice(0, 3).map((x, k) => (
-                      <div key={k} className="flex justify-between items-center gap-2 text-[13px] leading-snug">
-                        <span className="truncate max-w-[110px] font-semibold text-slate-800" title={x.productName}>{x.productName}</span>
-                        <span className="flex items-center gap-1.5">
-                          <span className="font-black text-[#2F7A45]">{formatRupiah(x.currentVal)}</span>
-                          <DeltaChip cur={x.currentVal} prev={x.prevValInput} labelBase="Baseline" />
-                        </span>
+                <SectionTitle color="#2F7A45" right={`${prodYr.length} item`}>Produk</SectionTitle>
+                {prodYr.length > 0 ? (
+                  <div className="space-y-1.5">
+                    {prodYr.slice(0, 3).map((x, k) => (
+                      <div key={k} className="flex items-center gap-2.5">
+                        <span className="w-[88px] truncate text-[14px] font-bold text-slate-800" title={x.productName}>{x.productName}</span>
+                        <div className="flex-1 h-2.5 rounded-full bg-slate-100 overflow-hidden">
+                          <div className="h-full rounded-full" style={{ width: `${(x.currentVal / maxProd) * 100}%`, background: c }} />
+                        </div>
+                        <span className="w-[66px] text-right text-[13px] font-black text-slate-700">{formatRupiah(x.currentVal)}</span>
+                        <DeltaChip cur={x.currentVal} prev={x.prevValInput} labelBase="Baseline" />
                       </div>
                     ))}
-                    {topProdYr.length > 3 && <div className="text-[11px] text-slate-400">+{topProdYr.length - 3} lainnya</div>}
-                  </>
+                    {prodYr.length > 3 && <div className="text-[11px] text-slate-400">+{prodYr.length - 3} lainnya</div>}
+                  </div>
                 ) : (
                   <Empty text={d.rep ? "Belum diisi" : "Belum ada laporan"} />
                 )}
               </div>
 
+              {/* Inovasi */}
               <div>
-                <div className="text-[11px] font-black uppercase tracking-wide text-[#5B6B00] mb-1">Inovasi</div>
+                <SectionTitle color="#5B6B00">Inovasi</SectionTitle>
                 {d.innovations ? (
-                  <p className="text-[13px] text-slate-700 leading-snug whitespace-pre-line">{d.innovations}</p>
+                  <div className="rounded-xl px-3 py-2 text-[14px] text-slate-700 leading-snug whitespace-pre-line" style={{ background: `${c}14`, borderLeft: `3px solid ${c}` }}>
+                    {d.innovations}
+                  </div>
                 ) : (
                   <Empty text={d.rep ? "Belum diisi" : "Belum ada laporan"} />
                 )}
               </div>
             </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>
   );
 }
