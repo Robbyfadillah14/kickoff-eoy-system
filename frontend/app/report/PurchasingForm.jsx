@@ -209,51 +209,73 @@ export default function PurchasingForm({ form, setForm }) {
           <section className="bg-card border border-blue-500/40 rounded-xl p-4 space-y-3">
             <div>
               <h2 className="font-semibold text-sm text-blue-400">Parameter & Kepatuhan Purchasing</h2>
-              <p className="text-xs text-sub mt-0.5">Input target supplier on-time delivery, STO 3 bulan, dan update landing cost (LC).</p>
+              <p className="text-xs text-sub mt-0.5">5 target Purchasing. Isi kolom <b>realisasi</b> untuk tiap target (target tertera di judul kartu).</p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
               <div className="bg-bg2/60 border border-line p-3 rounded-lg space-y-1.5">
-                <label className="text-[11px] text-sub block font-medium">Supplier On-Time Delivery (Target 98%)</label>
-                <input 
-                  type="text" 
-                  value={form.supplierOtd || ""} 
-                  onChange={(e) => setForm({ ...form, supplierOtd: e.target.value })} 
-                  placeholder="Contoh: Realisasi 99.72%..." 
-                  className="w-full bg-bg border border-line rounded px-2.5 py-1.5 text-white font-mono" 
+                <div className="flex items-center justify-between gap-2">
+                  <label className="text-[11px] text-white block font-semibold">1. Top Supplier 30 Days</label>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border border-blue-500/40 bg-blue-500/10 text-blue-300 whitespace-nowrap">Target min. 2 supplier</span>
+                </div>
+                <input
+                  type="text"
+                  value={form.topSupplier30d || ""}
+                  onChange={(e) => setForm({ ...form, topSupplier30d: e.target.value })}
+                  placeholder="Contoh: Realisasi 3 supplier"
+                  className="w-full bg-bg border border-line rounded px-2.5 py-1.5 text-white"
                 />
               </div>
-
               <div className="bg-bg2/60 border border-line p-3 rounded-lg space-y-1.5">
-                <label className="text-[11px] text-sub block font-medium">Update Landing Cost (LC) Max 1 Hari</label>
-                <input 
-                  type="text" 
-                  value={form.updateLc || ""} 
-                  onChange={(e) => setForm({ ...form, updateLc: e.target.value })} 
-                  placeholder="Contoh: Tercapai (Target LC = 5.5%)" 
-                  className="w-full bg-bg border border-line rounded px-2.5 py-1.5 text-white" 
+                <div className="flex items-center justify-between gap-2">
+                  <label className="text-[11px] text-white block font-semibold">2. Supplier On-Time Delivery</label>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border border-blue-500/40 bg-blue-500/10 text-blue-300 whitespace-nowrap">Target 98%</span>
+                </div>
+                <input
+                  type="text"
+                  value={form.supplierOtd || ""}
+                  onChange={(e) => setForm({ ...form, supplierOtd: e.target.value })}
+                  placeholder="Contoh: Realisasi 99%"
+                  className="w-full bg-bg border border-line rounded px-2.5 py-1.5 text-white"
                 />
               </div>
-
               <div className="bg-bg2/60 border border-line p-3 rounded-lg space-y-1.5">
-                <label className="text-[11px] text-sub block font-medium">STO 3 Months Schedule</label>
-                <input 
-                  type="text" 
-                  value={form.stoSchedule || ""} 
-                  onChange={(e) => setForm({ ...form, stoSchedule: e.target.value })} 
-                  placeholder="Contoh: Maret, Juni, Oktober, Desember" 
-                  className="w-full bg-bg border border-line rounded px-2.5 py-1.5 text-white" 
+                <div className="flex items-center justify-between gap-2">
+                  <label className="text-[11px] text-white block font-semibold">3. Sourcing Supplier Baru</label>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border border-blue-500/40 bg-blue-500/10 text-blue-300 whitespace-nowrap">Target min. 2 supplier</span>
+                </div>
+                <input
+                  type="text"
+                  value={form.newSupplierDev || ""}
+                  onChange={(e) => setForm({ ...form, newSupplierDev: e.target.value })}
+                  placeholder="Contoh: Realisasi 2 supplier"
+                  className="w-full bg-bg border border-line rounded px-2.5 py-1.5 text-white"
                 />
               </div>
-
               <div className="bg-bg2/60 border border-line p-3 rounded-lg space-y-1.5">
-                <label className="text-[11px] text-sub block font-medium">Pengembangan Supplier Baru (Target Min. 2)</label>
-                <input 
-                  type="text" 
-                  value={form.newSupplierDev || ""} 
-                  onChange={(e) => setForm({ ...form, newSupplierDev: e.target.value })} 
-                  placeholder="Contoh: Top Supplier 30 Days min 2 Suppliers..." 
-                  className="w-full bg-bg border border-line rounded px-2.5 py-1.5 text-white" 
+                <div className="flex items-center justify-between gap-2">
+                  <label className="text-[11px] text-white block font-semibold">4. Update Landing Cost (LC)</label>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border border-blue-500/40 bg-blue-500/10 text-blue-300 whitespace-nowrap">Target maks. 1 hari</span>
+                </div>
+                <input
+                  type="text"
+                  value={form.updateLc || ""}
+                  onChange={(e) => setForm({ ...form, updateLc: e.target.value })}
+                  placeholder="Contoh: Tercapai ontime"
+                  className="w-full bg-bg border border-line rounded px-2.5 py-1.5 text-white"
+                />
+              </div>
+              <div className="bg-bg2/60 border border-line p-3 rounded-lg space-y-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <label className="text-[11px] text-white block font-semibold">5. STO (Stock Opname)</label>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border border-blue-500/40 bg-blue-500/10 text-blue-300 whitespace-nowrap">Target 4× per tahun</span>
+                </div>
+                <input
+                  type="text"
+                  value={form.stoSchedule || ""}
+                  onChange={(e) => setForm({ ...form, stoSchedule: e.target.value })}
+                  placeholder="Contoh: 4× — Maret, Juni, September, Desember"
+                  className="w-full bg-bg border border-line rounded px-2.5 py-1.5 text-white"
                 />
               </div>
             </div>

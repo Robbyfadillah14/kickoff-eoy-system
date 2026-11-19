@@ -67,10 +67,11 @@ export const DEPT_KPIS = {
   PURCH: {
     evaluationKey: "purchasingEvaluation",
     kpis: [
+      { key: "topSupplier30d", label: "Top supplier 30 hari (min 2 supplier)", kind: "count", target: 2, dir: "min", targetLabel: "≥ 2 supplier" },
       { key: "supplierOtd",    label: "Supplier on-time delivery",       kind: "pct", target: 98, dir: "min", targetLabel: "≥ 98%" },
-      { key: "updateLc",       label: "Update landing cost (maks 1 hari)", kind: "text" },
-      { key: "stoSchedule",    label: "Jadwal STO 3 bulanan",            kind: "info" },
-      { key: "newSupplierDev", label: "Pengembangan supplier baru (min 2)", kind: "text" },
+      { key: "newSupplierDev", label: "Sourcing supplier baru (min 2)",  kind: "count", target: 2, dir: "min", targetLabel: "≥ 2 supplier" },
+      { key: "updateLc",       label: "Update landing cost (maks 1 hari)", kind: "text", targetLabel: "maks 1 hari" },
+      { key: "stoSchedule",    label: "STO 4× per tahun",                kind: "info", targetLabel: "4×/tahun" },
     ],
   },
   EXIM: {
