@@ -207,26 +207,69 @@ export default function DashboardPage() {
     }, 2000);
   }
 
-  // Fungsi untuk merender Deck interaktif sesuai nama departemen laporan
+  // ========================================================================
+  // FUNGSI RENDER DECK YANG SUDAH DIPERBAIKI (FIXED & ROBUST)
+  // ========================================================================
   const renderDepartmentDeck = (report) => {
     const deptName = (report?.department?.name || "").toLowerCase();
     const salesType = report?.metricsJson?.salesType || "PROFIT";
 
+    // 1. MANDIRI DECKS (Paling spesifik dicek duluan)
     if (deptName.includes("marketing") || deptName.includes("digital")) {
       return <DigitalMarketingDeck report={report} allYearlyReports={allYearlyReports} />;
-    } else if (deptName.includes("finance") || deptName.includes("tax") || deptName.includes("accounting")) {
-      return <FinancialDeck report={report} allYearlyReports={allYearlyReports} />;
-    } else if (deptName.includes("product") || deptName.includes("r&d") || deptName.includes("development")) {
+    }
+    if (deptName.includes("product") || deptName.includes("r&d") || deptName.includes("development")) {
       return <ProductDevelopmentDeck report={report} allYearlyReports={allYearlyReports} />;
-    } else if (deptName.includes("operational") || deptName.includes("logistic") || deptName.includes("supply")) {
+    }
+
+    // 2. FINANCIAL DECK (Finance, Tax, Accounting, AR, AP, Admin TF)
+    if (
+      deptName.includes("finance") || 
+      deptName.includes("tax") || 
+      deptName.includes("accounting") ||
+      deptName.includes(" ar") || deptName.endsWith(" ar") || 
+      deptName.includes(" ap") || deptName.endsWith(" ap") || 
+      deptName.includes("tukar faktur") || deptName.includes("admin tf")
+    ) {
+      return <FinancialDeck report={report} allYearlyReports={allYearlyReports} />;
+    }
+
+    // 3. OPERATIONAL HOSPITALITY DECK (HR, MR, Logistic, Purchasing, Exim, Operational, Admin Logistic)
+    if (
+      deptName.includes("hr") || 
+      deptName.includes("human resource") || 
+      deptName.includes(" mr") || deptName.endsWith(" mr") ||
+      deptName.includes("operational") || 
+      deptName.includes("logistic") || 
+      deptName.includes("supply") ||
+      deptName.includes("purchasing") ||
+      deptName.includes("pembelian") ||
+      deptName.includes("exim") ||
+      deptName.includes("export") ||
+      deptName.includes("import") ||
+      deptName.includes("admin logistic")
+    ) {
       return <OperationalHospitalityDeck report={report} allYearlyReports={allYearlyReports} />;
-    } else {
+    }
+
+    // 4. COMMERCIAL DECK (Khusus Sales/Komersial)
+    if (deptName.includes("sales") || deptName.includes("komersial") || deptName.includes("business")) {
       return salesType === "OMZET" ? (
         <CommercialOmzetDeck report={report} allYearlyReports={allYearlyReports} />
       ) : (
         <CommercialProfitDeck report={report} allYearlyReports={allYearlyReports} />
       );
     }
+
+    // 5. ULTIMATE FALLBACK (AMAN: Jangan lempar ke Sales!)
+    // Jika departemen benar-benar tidak dikenali, tampilkan pesan error yang jelas.
+    return (
+      <div className="p-8 text-center text-slate-400 bg-slate-900 rounded-2xl border border-dashed border-slate-700">
+        <h3 className="text-lg font-bold text-rose-400 mb-2">⚠️ Deck Tidak Ditemukan</h3>
+        <p className="text-sm">Departemen terdeteksi: <span className="text-white font-mono bg-slate-800 px-2 py-1 rounded">"{report?.department?.name || 'Unknown'}"</span></p>
+        <p className="text-xs mt-2 text-slate-500">Silakan hubungi admin untuk memetakan departemen ini ke deck presentasi yang sesuai.</p>
+      </div>
+    );
   };
 
   if (!user) return <div className="min-h-screen bg-[#0d1117] p-4 text-slate-400 text-sm flex items-center justify-center">Memuat sesi pengguna...</div>;
