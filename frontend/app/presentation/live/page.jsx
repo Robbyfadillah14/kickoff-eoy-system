@@ -1,211 +1,169 @@
 "use client";
-
-import { useEffect, useState, Suspense } from "react";
+// frontend/app/presentation/live/page.jsx — VERSI BARU
+import { useEffect, useMemo, useState, Suspense } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import { Monitor, Calendar } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { apiFetch } from "../../../lib/api";
+import {
+  CLUSTERS, resolveDepartment, clusterOfDepartment,
+  buildClusterData, toLegacyReport, toLegacyYearlyMap,
+} from "../../../lib/presentation";
 
-// Import komponen deck modular yang sudah ada di folder
-import CommercialProfitDeck from "../../../components/presentation/CommercialProfitDeck";
-import CommercialOmzetDeck from "../../../components/presentation/CommercialOmzetDeck";
+import CommercialDeck from "../../../components/presentation/CommercialDeck";
+import { DigitalMarketingDeck, ProductDevelopmentDeck } from "../../../components/presentation/ClusterDeck";
+// Deck lama: sementara tetap dipakai, tetapi sekarang menerima data GABUNGAN seluruh departemen klaster (bukan laporan pertama saja)
 import FinancialDeck from "../../../components/presentation/FinancialDeck";
 import OperationalHospitalityDeck from "../../../components/presentation/OperationalHospitalityDeck";
-import DigitalMarketingDeck from "../../../components/presentation/DigitalMarketingDeck";
-import ProductDevelopmentDeck from "../../../components/presentation/ProductDevelopmentDeck";
 
-function LivePresentationContent({ searchParams }) {
-  const routerSearchParams = useSearchParams();
-  
-  // Ambil parameter cluster dan tahun dari URL secara aman
-  const clusterParam = searchParams?.cluster || routerSearchParams.get("cluster") || "COMMERCIAL";
-  const yearParam = searchParams?.year || routerSearchParams.get("year") || "2026";
+const asList = (d) => (Array.isArray(d) ? d : d?.data || d?.reports || d?.plants || d?.departments || []);
+const CLUSTER_IDS = Object.keys(CLUSTERS);
+
+function Screen({ children }) {
+  return <div className="h-screen bg-slate-950 text-slate-400 text-sm flex items-center justify-center p-6 text-center">{children}</div>;
+}
+
+function LiveContent() {
+  const router = useRouter();
+  const sp = useSearchParams();
+  const clusterQ = (sp.get("cluster") || "").toUpperCase();
+  const deptIdQ = sp.get("deptId") || "";
+  const plantQ = sp.get("plantId") || "";
 
   const [user, setUser] = useState(null);
   const [plants, setPlants] = useState([]);
-  const [selectedPlantId, setSelectedPlantId] = useState("");
+  const [departments, setDepartments] = useState([]);
   const [reports, setReports] = useState([]);
-  const [allYearlyReports, setAllYearlyReports] = useState({});
+  const [plantId, setPlantId] = useState(plantQ);
+  const [mode, setMode] = useState(null); // OMZET | PROFIT (null = ikuti data)
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    const fallback = JSON.parse(localStorage.getItem("user") || "null");
-    if (fallback) {
-      setUser(fallback);
-      if (fallback.plantId) setSelectedPlantId(fallback.plantId);
-    } else {
-      window.location.href = "/login";
-    }
-
-    fetch("/api/plants")
-      .then((res) => res.json())
-      .then((data) => {
-        const list = Array.isArray(data) ? data : data?.data || data?.plants || [];
-        setPlants(list);
-      })
-      .catch((err) => console.log("Gagal memuat master plant", err));
+    let u = null;
+    try { u = JSON.parse(localStorage.getItem("user") || "null"); } catch {}
+    if (!u) { window.location.href = "/login"; return; }
+    setUser(u);
+    if (u.role !== "SUPER_ADMIN" && u.plantId) setPlantId(u.plantId); // non-superadmin dikunci ke plant-nya
+    apiFetch("/api/plants").then((d) => setPlants(asList(d))).catch(() => {});
+    apiFetch("/api/departments").then((d) => setDepartments(asList(d))).catch(() => {});
   }, []);
 
-  const isSuperAdmin = user?.role === "SUPER_ADMIN";
-  const activePlantId = selectedPlantId || user?.plantId;
+  const isSuper = user?.role === "SUPER_ADMIN";
 
-  // Fetch seluruh report data lintas tahun & plant dengan filter klaster yang tangguh
+  // superadmin tanpa plant terpilih -> pilih plant pertama (data antar-plant TIDAK boleh dicampur)
   useEffect(() => {
-    if (!user) return;
-    setLoading(true);
+    if (isSuper && !plantId && plants.length) setPlantId((plants.find((p) => p.isHolding) || plants[0]).id);
+  }, [isSuper, plantId, plants]);
 
-    const paramsObj = {};
-    if (user.role === "SUPER_ADMIN") {
-      if (selectedPlantId && selectedPlantId !== "ALL" && selectedPlantId !== "semua") {
-        paramsObj.plantId = selectedPlantId;
-      }
-    } else {
-      if (activePlantId) {
-        paramsObj.plantId = activePlantId;
-      }
+  useEffect(() => {
+    if (!user || !plantId) return;
+    setLoading(true); setError("");
+    apiFetch(`/api/reports?${new URLSearchParams({ plantId })}`)
+      .then((d) => setReports(asList(d)))
+      .catch((e) => setError(e.message || "Gagal memuat laporan"))
+      .finally(() => setLoading(false));
+  }, [user, plantId]);
+
+  const deptById = useMemo(() => new Map(departments.map((d) => [d.id, d.name])), [departments]);
+
+  // klaster: ?deptId= (departemen) > ?cluster= > departemen milik user > COMMERCIAL
+  const cluster = useMemo(() => {
+    if (deptIdQ && deptById.get(deptIdQ)) {
+      const c = clusterOfDepartment(deptById.get(deptIdQ));
+      if (c) return c;
     }
+    if (CLUSTER_IDS.includes(clusterQ)) return clusterQ;
+    if (clusterQ === "OPERATIONAL") return "OPERATIONAL_HOSPITALITY";
+    const own = user?.departmentId && deptById.get(user.departmentId);
+    return (own && clusterOfDepartment(own)) || "COMMERCIAL";
+  }, [deptIdQ, clusterQ, deptById, user]);
 
-    const qs = new URLSearchParams(paramsObj);
-    fetch(`/api/reports?${qs}`)
-      .then((res) => res.json())
-      .then((data) => {
-        const allReports = Array.isArray(data) ? data : data?.data || data?.reports || [];
-        
-        // Filter laporan berdasarkan klaster divisi secara fleksibel
-        const filtered = allReports.filter((rep) => {
-          const deptName = (rep.department?.name || rep.departmentName || "").toLowerCase();
-          
-          if (clusterParam === "COMMERCIAL") {
-            return deptName.includes("sales") || deptName.includes("marketing") || deptName.includes("commercial") || deptName.includes("product") || deptName.includes("komersial");
-          }
-          if (clusterParam === "FINANCIAL") {
-            return deptName.includes("finance") || deptName.includes("accounting") || deptName.includes("tax") || deptName.includes("akuntansi") || deptName.includes("keuangan") || deptName.includes("pajak") || deptName.includes("audit");
-          }
-          if (clusterParam === "OPERATIONAL_HOSPITALITY" || clusterParam === "OPERATIONAL") {
-            return deptName.includes("logistic") || deptName.includes("purchasing") || deptName.includes("hr") || deptName.includes("export") || deptName.includes("admin") || deptName.includes("operational") || deptName.includes("gudang");
-          }
-          if (clusterParam === "DIGITAL_MARKETING" || clusterParam === "DIGITAL") {
-            return deptName.includes("digital") || deptName.includes("marketing") || clusterParam === "DIGITAL_MARKETING";
-          }
-          if (clusterParam === "PRODUCT_DEVELOPMENT" || clusterParam === "DEVELOPMENT") {
-            return deptName.includes("product development") || deptName.includes("development") || clusterParam === "PRODUCT_DEVELOPMENT";
-          }
-          return true;
-        });
+  const normalized = useMemo(
+    () => reports.map((r) => (r.department?.name ? r : { ...r, department: { name: r.departmentName || deptById.get(r.departmentId) || "" } })),
+    [reports, deptById]
+  );
+  const plant = plants.find((p) => p.id === plantId);
+  const plantName = plant?.name || plant?.code || "";
 
-        // Fallback pengaman: jika hasil filter kosong, gunakan seluruh data agar slide tidak 0 parameter
-        const finalReports = filtered.length > 0 ? filtered : allReports;
-        setReports(finalReports);
+  const data = useMemo(() => buildClusterData(normalized, { cluster, plantId }), [normalized, cluster, plantId]);
 
-        // Susun mapping allYearlyReports berdasarkan tahun (2024, 2025, 2026, 2027) untuk matriks komparasi
-        const yearlyMap = {};
-        [2024, 2025, 2026, 2027].forEach((yr) => {
-          yearlyMap[yr] = finalReports.filter((rep) => Number(rep.year) === Number(yr));
-        });
-        setAllYearlyReports(yearlyMap);
+  // OMZET/PROFIT: dari field salesType laporan Sales terbaru, bukan dari kata di teks
+  const detectedMode = useMemo(() => {
+    if (cluster !== "COMMERCIAL") return "OMZET";
+    const sales = normalized
+      .filter((r) => (!plantId || (r.plantId || r.plant?.id) === plantId) && resolveDepartment(r.department)?.cluster === "COMMERCIAL")
+      .sort((a, b) => Number(b.year) - Number(a.year));
+    const t = sales.map((r) => r.metricsJson?.salesType).find(Boolean);
+    return String(t || "OMZET").toUpperCase() === "PROFIT" ? "PROFIT" : "OMZET";
+  }, [normalized, cluster, plantId, plantName]);
+  const deckMode = mode || detectedMode;
 
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.log("Gagal memuat data laporan", err);
-        setLoading(false);
-      });
-  }, [user, activePlantId, selectedPlantId, clusterParam]);
+  const setCluster = (c) => router.replace(`/presentation/live?cluster=${c}`);
 
-  if (!user) return <div className="min-h-screen bg-slate-950 p-6 text-slate-400 text-sm flex items-center justify-center">Memuat Live Deck Presentation...</div>;
+  if (!user) return <Screen>Memuat presentasi…</Screen>;
 
-  const currentPlantObj = plants.find((p) => p.id === activePlantId);
-  const currentPlantName = isSuperAdmin && !selectedPlantId ? "Semua Cabang (Global)" : (currentPlantObj?.name || currentPlantObj?.code || "Cabang Utama");
-
-  // Ambil laporan tahun aktif (berdasarkan yearParam) sebagai props utama deck
-  const activeReport = reports.find((r) => Number(r.year) === Number(yearParam)) || reports[0] || {
-    plant: currentPlantObj,
-    department: { name: clusterParam },
-    metricsJson: {},
-    salesPerformances: []
-  };
-
-  // Tentukan deck komponen mana yang akan dirender berdasarkan klaster
-  const renderSelectedDeck = () => {
-    const deptName = (activeReport?.department?.name || "").toLowerCase();
-
-    if (clusterParam === "DIGITAL_MARKETING" || deptName.includes("digital marketing")) {
-      return <DigitalMarketingDeck report={activeReport} allYearlyReports={allYearlyReports} />;
-    }
-    if (clusterParam === "PRODUCT_DEVELOPMENT" || deptName.includes("product development")) {
-      return <ProductDevelopmentDeck report={activeReport} allYearlyReports={allYearlyReports} />;
-    }
-    if (clusterParam === "COMMERCIAL") {
-      const salesType = activeReport?.metricsJson?.salesType || "PROFIT";
-      if (salesType === "OMZET") {
-        return <CommercialOmzetDeck report={activeReport} allYearlyReports={allYearlyReports} />;
-      }
-      return <CommercialProfitDeck report={activeReport} allYearlyReports={allYearlyReports} />;
-    }
-    if (clusterParam === "FINANCIAL") {
-      return <FinancialDeck report={activeReport} allYearlyReports={allYearlyReports} />;
-    }
-    if (clusterParam === "OPERATIONAL_HOSPITALITY" || clusterParam === "OPERATIONAL") {
-      return <OperationalHospitalityDeck report={activeReport} allYearlyReports={allYearlyReports} />;
-    }
-    return <CommercialProfitDeck report={activeReport} allYearlyReports={allYearlyReports} />;
+  const renderDeck = () => {
+    const common = { reports: normalized, plantId, plantName };
+    if (cluster === "COMMERCIAL") return <CommercialDeck {...common} mode={deckMode} onClose={() => router.push("/presentation")} />;
+    if (cluster === "DIGITAL_MARKETING") return <DigitalMarketingDeck {...common} onClose={() => router.push("/presentation")} />;
+    if (cluster === "PRODUCT_DEVELOPMENT") return <ProductDevelopmentDeck {...common} onClose={() => router.push("/presentation")} />;
+    // deck lama: beri data gabungan per klaster
+    const legacyYears = toLegacyYearlyMap(data);
+    const report = toLegacyReport(data, 2026) || toLegacyReport(data, 2025) || toLegacyReport(data, 2024) ||
+      { plant, department: { name: CLUSTERS[cluster].label }, metricsJson: {} };
+    const Old = cluster === "FINANCIAL" ? FinancialDeck : OperationalHospitalityDeck;
+    return (
+      <div className="h-full overflow-auto flex items-center justify-center p-4">
+        <div className="w-full max-w-6xl"><Old report={{ ...report, plant }} allYearlyReports={legacyYears} /></div>
+      </div>
+    );
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 p-4 sm:p-6 max-w-6xl mx-auto text-white flex flex-col justify-between space-y-4 font-sans select-none">
-      
-      {/* Top Navbar Header */}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 bg-slate-900/90 border border-slate-800 p-3.5 rounded-2xl shadow-xl backdrop-blur-md">
-        <div className="flex items-center gap-3">
-          <Link href="/presentation" className="px-3 py-1.5 bg-slate-800 border border-slate-700 hover:border-cyan-500/50 text-xs text-slate-300 hover:text-cyan-400 rounded-xl transition font-medium">
-            ← Kembali ke Hub
-          </Link>
-          <div className="flex items-center gap-2 text-xs font-mono font-bold px-3 py-1.5 rounded-xl border bg-cyan-500/10 text-cyan-400 border-cyan-500/30">
-            <Monitor size={14} className="animate-pulse text-cyan-400" />
-            <span>EXECUTIVE PRESENTATION HUB ({clusterParam})</span>
-          </div>
+    <div className="h-screen bg-slate-950 text-white flex flex-col font-sans">
+      <div className="flex flex-wrap items-center gap-2 px-3 py-2 border-b border-slate-800 bg-slate-900/90">
+        <Link href="/presentation" className="px-3 py-1.5 bg-slate-800 border border-slate-700 hover:border-cyan-500/50 text-xs text-slate-300 hover:text-cyan-400 rounded-xl transition">← Hub</Link>
+
+        <div className="flex flex-wrap gap-1">
+          {CLUSTER_IDS.map((c) => (
+            <button key={c} onClick={() => setCluster(c)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition ${c === cluster ? "bg-cyan-500 text-slate-950 border-cyan-400" : "bg-slate-800 text-slate-300 border-slate-700 hover:text-white"}`}>
+              {CLUSTERS[c].label}
+            </button>
+          ))}
         </div>
 
-        <div className="flex items-center gap-2">
-          {isSuperAdmin && (
-            <select 
-              value={selectedPlantId || ""} 
-              onChange={(e) => setSelectedPlantId(e.target.value)} 
-              className="bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-cyan-400 font-mono focus:outline-none cursor-pointer"
-            >
-              <option value="">Semua Plant (Global)</option>
-              {plants.map((p) => <option key={p.id} value={p.id}>{p.name || p.code || p.id}</option>)}
-            </select>
+        <div className="ml-auto flex items-center gap-2">
+          {cluster === "COMMERCIAL" && (
+            <div className="flex rounded-xl overflow-hidden border border-slate-700 text-xs">
+              {["OMZET", "PROFIT"].map((m) => (
+                <button key={m} onClick={() => setMode(m)} className={`px-3 py-1.5 ${deckMode === m ? "bg-emerald-500 text-slate-950 font-bold" : "bg-slate-800 text-slate-300"}`}>{m === "OMZET" ? "Omzet" : "Profit"}</button>
+              ))}
+            </div>
           )}
-
-          <div className="flex items-center gap-1.5 bg-slate-800 border border-slate-700 px-3 py-1.5 rounded-xl text-xs text-slate-300 font-mono">
-            <Calendar size={14} className="text-cyan-400" />
-            <span>Tahun Aktif: <b className="text-white">{yearParam}</b> (Matrix 2024–2027)</span>
-          </div>
+          {isSuper ? (
+            <select value={plantId} onChange={(e) => setPlantId(e.target.value)} className="bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-cyan-400 focus:outline-none">
+              {plants.map((p) => <option key={p.id} value={p.id}>{p.name || p.code}</option>)}
+            </select>
+          ) : (
+            <span className="text-xs text-slate-400 px-2">{plantName}</span>
+          )}
         </div>
       </div>
 
-      {/* Main Viewport Container */}
-      <div className="flex-1 flex flex-col justify-center">
-        {loading ? (
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-16 text-center text-slate-400 text-sm shadow-2xl">
-            Menyelaraskan data presentasi lintas tahun (2024–2027) divisi {clusterParam} untuk cabang {currentPlantName}...
-          </div>
-        ) : (
-          renderSelectedDeck()
-        )}
-      </div>
-
-      <div className="text-center text-[11px] text-slate-500 font-mono">
-        Multi-Year Comparative Matrix Aktif — Data ditarik dari database untuk seluruh rentang 2024–2027 di lingkup <span className="text-cyan-400 font-bold">{currentPlantName}</span>.
+      <div className="flex-1 min-h-0">
+        {error ? <Screen>{error}</Screen>
+          : loading || !plantId ? <Screen>Menyiapkan data {CLUSTERS[cluster].label} {plantName && `· ${plantName}`}…</Screen>
+          : renderDeck()}
       </div>
     </div>
   );
 }
 
-export default function LivePresentationPage({ searchParams }) {
+export default function LivePresentationPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-slate-950 p-6 text-slate-400 text-sm flex items-center justify-center">Memuat Presentation Engine...</div>}>
-      <LivePresentationContent searchParams={searchParams} />
+    <Suspense fallback={<Screen>Memuat presentasi…</Screen>}>
+      <LiveContent />
     </Suspense>
   );
 }
