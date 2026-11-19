@@ -1,6 +1,6 @@
 "use client";
 import React, { useState } from "react";
-import * as XLSX from "xlsx";
+import { parseExcelFile, applyExcelImport } from "../../lib/reportExcel";
 import { FileSpreadsheet, Upload, CheckCircle2, Edit3, Eye } from "lucide-react";
 
 export default function AdminTfForm({ form, setForm }) {
@@ -13,51 +13,22 @@ export default function AdminTfForm({ form, setForm }) {
   const rows = form.salesPerformances || [];
 
   // Handler Upload & Parse File Excel Fleksibel untuk Admin TF
-  const handleExcelUpload = (e) => {
-    const file = e.target.files[0];
+  const handleExcelUpload = async (e) => {
+    const file = e.target.files?.[0];
     if (!file) return;
 
     setFileName(file.name);
-    const reader = new FileReader();
-
-    reader.onload = (evt) => {
-      try {
-        const data = new Uint8Array(evt.target.result);
-        const workbook = XLSX.read(data, { type: "array" });
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
-
-        const mappedPerformances = jsonData.map((row, idx) => {
-          const keys = Object.keys(row);
-          const col0 = row[keys[0]] || "";
-          const col1 = row[keys[1]] || "";
-          const col2 = row[keys[2]] || "";
-          const col3 = row[keys[3]] || "";
-
-          return {
-            id: Date.now() + idx,
-            salesName: String(col0).trim() || `Parameter / Invoice TF #${idx + 1}`,
-            targetVal: String(col1).trim() || "0",
-            actualVal: String(col2).trim() || "0",
-            note: String(col3 || "").trim(),
-          };
-        });
-
-        setForm({
-          ...form,
-          salesPerformances: mappedPerformances
-        });
-
-        setSuccessMsg(true);
-        setTimeout(() => setSuccessMsg(false), 4000);
-      } catch (err) {
-        console.error("Gagal membaca file Excel:", err);
-        alert("Format file Excel tidak valid atau gagal dibaca!");
-      }
-    };
-
-    reader.readAsArrayBuffer(file);
+    try {
+      // kolom dikenali dari HEADER (Target/Aktual/Nama/Keterangan/Tahun), bukan urutan kolom
+      const res = await parseExcelFile(file, { year: form.year, sales: false });
+      setForm(applyExcelImport(form, res));
+      setSuccessMsg(true);
+      setTimeout(() => setSuccessMsg(false), 4000);
+    } catch (err) {
+      console.error("Gagal membaca file Excel:", err);
+      alert("File Excel tidak bisa dibaca: " + (err?.message || "format tidak valid"));
+    }
+    e.target.value = "";
   };
 
   return (

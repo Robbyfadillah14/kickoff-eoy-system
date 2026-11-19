@@ -170,37 +170,63 @@ export default function ReportFormPage() {
   // form anak membaca form.year (label tahun) & form.id (upload lampiran) -> disuntikkan saat render
   const formView = useMemo(() => ({ ...form, year, id: reportId }), [form, year, reportId]);
 
-  async function handleSubmit() {
-    if (saving || blocked) return;
-    setNotice(null); setSaving(true);
-
-    const perf = cleanPerformances(form.salesPerformances);
-    const challenges = cleanTitles(form.challenges);
-    const opportunities = cleanTitles(form.opportunities);
-    const salesType = isSalesDept ? form.salesType : "OMZET";
-    const body = {
-      id: reportId,
-      year: Number(year),
+  /** badan POST /api/reports untuk satu tahun (dipakai simpan biasa & simpan baris Excel ke tahun lain) */
+  function buildBody(f, y, id) {
+    const perf = cleanPerformances(f.salesPerformances);
+    const challenges = cleanTitles(f.challenges);
+    const opportunities = cleanTitles(f.opportunities);
+    const salesType = isSalesDept ? f.salesType : "OMZET";
+    return {
+      id,
+      year: Number(y),
       plantId: String(plantId),
       departmentId: String(selectedDeptId),
       salesType,
-      achievementSummary: buildSummary(form, deptName, year),
+      achievementSummary: buildSummary(f, deptName, y),
       salesPerformances: perf,
       challenges,
       opportunities,
       metricsJson: {
-        ...stripMeta(form),
+        ...stripMeta(f),
         salesType,
         challenges, opportunities,
-        kpiList: form.kpiList || [],
+        kpiList: f.kpiList || [],
         salesPerformances: perf,
-        salesSupportPerformances: cleanSupport(form.salesSupportPerformances),
-        branchInnovations: form.branchInnovations || "",
-        metrics: (form.kpiList || []).map((k) => ({ val: k.val, note: k.note, unit: k.unit, period: k.period, pic: k.pic })),
-        weeklyRevenue: form.weeklyRevenue || [],
-        targetAchievedPct: form.targetAchievedPct || "",
+        salesSupportPerformances: cleanSupport(f.salesSupportPerformances),
+        branchInnovations: f.branchInnovations || "",
+        metrics: (f.kpiList || []).map((k) => ({ val: k.val, note: k.note, unit: k.unit, period: k.period, pic: k.pic })),
+        weeklyRevenue: f.weeklyRevenue || [],
+        targetAchievedPct: f.targetAchievedPct || "",
       },
     };
+  }
+
+  /** simpan baris Excel tahun lain (mis. 2025) ke laporan tahun itu; isian lain di laporan itu tidak disentuh */
+  async function saveOtherYear(y, rows) {
+    if (saving || blocked) return;
+    setNotice(null); setSaving(true);
+    try {
+      const raw = await apiFetch(`/api/reports?${new URLSearchParams({ year: String(y), plantId: String(plantId), departmentId: String(selectedDeptId) })}`).catch((e) => (msgIsNotFound(e) ? null : Promise.reject(e)));
+      const existing = pickReport(raw, { year: y, plantId, deptId: selectedDeptId });
+      const base = existing ? reportToForm(existing) : blankForm();
+      const had = cleanPerformances(base.salesPerformances).length;
+      if (had && !window.confirm(`Laporan ${y} sudah punya ${had} baris tabel Excel. Ganti dengan ${rows.length} baris dari file ini?`)) { setSaving(false); return; }
+      const res = await apiFetch("/api/reports", { method: "POST", body: JSON.stringify(buildBody({ ...base, salesPerformances: rows }, y, existing?.id ?? null)) });
+      setForm((f) => { const imp = f.__import; if (!imp) return f; const rest = { ...imp.otherYears }; delete rest[y]; return { ...f, __import: { ...imp, otherYears: rest } }; });
+      setNotice({ type: "ok", text: `${rows.length} baris disimpan ke laporan ${y}.` });
+      return res;
+    } catch (e) {
+      setNotice({ type: "err", text: `Gagal menyimpan ke laporan ${y}: ${e.message || "kesalahan server"}` });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleSubmit() {
+    if (saving || blocked) return;
+    setNotice(null); setSaving(true);
+
+    const body = buildBody(form, Number(year), reportId);
 
     try {
       const res = await apiFetch("/api/reports", { method: "POST", body: JSON.stringify(body) });
@@ -278,9 +304,27 @@ export default function ReportFormPage() {
           <span>Panduan Pengisian — Tahun {year}{phase ? ` · ${phase.label}` : ""}</span>
         </div>
         <p className="text-xs text-slate-300 leading-relaxed">
-          Isian dan file Excel yang Anda unggah <b>disimpan untuk tahun yang sedang dipilih ({year})</b>. Untuk mengisi tahun lain, ganti tahun di kanan atas lalu isi atau unggah lagi — tiap tahun adalah laporan terpisah dan akan tampil pada slide Run (2024), Grow (2025), Transform (2026) dan Future (2027).
+          Isian dan file Excel yang Anda unggah <b>disimpan untuk tahun yang sedang dipilih ({year})</b>. Untuk mengisi tahun lain, ganti tahun di kanan atas lalu isi atau unggah lagi. Kolom file Excel dikenali dari <b>judul kolomnya</b> (Nama/Item, Target, Aktual/Realisasi, Keterangan, dan opsional Tahun), bukan urutannya. Tiap tahun adalah laporan terpisah dan akan tampil pada slide Run (2024), Grow (2025), Transform (2026) dan Future (2027).
         </p>
       </div>
+
+      {form.__import && (
+        <div className="mb-6 rounded-2xl border border-emerald-500/30 bg-emerald-950/20 p-4 space-y-2 text-xs">
+          <div className="font-bold text-emerald-300">File dibaca: {form.__import.fileName}{form.__import.sheetName ? ` · sheet "${form.__import.sheetName}"` : ""} · header di baris {form.__import.headerRow}</div>
+          <div className="text-slate-300">
+            {form.__import.count} baris dimasukkan ke tahun {year}. Kolom terbaca — nama: <b>{form.__import.mapping?.name || "—"}</b>, target: <b>{form.__import.mapping?.target || "—"}</b>, aktual: <b>{form.__import.mapping?.actual || "—"}</b>, keterangan: <b>{form.__import.mapping?.note || "—"}</b>{form.__import.mapping?.year ? <>, tahun: <b>{form.__import.mapping.year}</b></> : null}.
+            {" "}Periksa tabel di bawah sebelum menekan Simpan.
+          </div>
+          {form.__import.usedFallback && <div className="text-amber-300">Judul kolom Target/Aktual tidak dikenali, jadi kolom dibaca berdasarkan urutan. Pastikan angkanya tidak tertukar.</div>}
+          {form.__import.warnings?.map((w, i) => <div key={i} className="text-amber-200/90">• {w}</div>)}
+          {Object.entries(form.__import.otherYears || {}).map(([y, rows]) => (
+            <div key={y} className="flex flex-wrap items-center gap-3 pt-1 border-t border-emerald-500/20">
+              <span className="text-slate-200">File ini juga berisi <b>{rows.length} baris tahun {y}</b>.</span>
+              <button type="button" disabled={saving || blocked} onClick={() => saveOtherYear(y, rows)} className="px-3 py-1.5 rounded-lg bg-emerald-500 text-slate-950 font-bold disabled:opacity-40">Simpan ke laporan {y}</button>
+            </div>
+          ))}
+        </div>
+      )}
 
       {currentDept && plantId && (
         <div className="mb-6 flex flex-wrap items-center gap-3 rounded-2xl border border-purple-500/30 bg-purple-950/20 p-3 sm:p-4">

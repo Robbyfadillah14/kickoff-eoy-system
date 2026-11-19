@@ -1,6 +1,6 @@
 "use client";
 import React, { useState } from "react";
-import * as XLSX from "xlsx";
+import { parseExcelFile, applyExcelImport } from "../../lib/reportExcel";
 import { FileSpreadsheet, Upload, CheckCircle2, Edit3, Eye } from "lucide-react";
 
 export default function SalesForm({ form, setForm }) {
@@ -15,58 +15,22 @@ export default function SalesForm({ form, setForm }) {
   const prevYear = currentYear - 1;
 
   // Handler Upload & Parse File Excel Fleksibel
-  const handleExcelUpload = (e) => {
-    const file = e.target.files[0];
+  const handleExcelUpload = async (e) => {
+    const file = e.target.files?.[0];
     if (!file) return;
 
     setFileName(file.name);
-    const reader = new FileReader();
-
-    reader.onload = (evt) => {
-      try {
-        const data = new Uint8Array(evt.target.result);
-        const workbook = XLSX.read(data, { type: "array" });
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
-
-        const mappedPerformances = jsonData.map((row, idx) => {
-          const keys = Object.keys(row);
-          const col0 = row[keys[0]] || "";
-          const col1 = row[keys[1]] || "";
-          const col2 = row[keys[2]] || "";
-          const col3 = row[keys[3]] || "";
-
-          const parsedTarget = Number(String(col1).replace(/[^0-9.-]+/g, ""));
-          const parsedActual = Number(String(col2).replace(/[^0-9.-]+/g, ""));
-
-          return {
-            id: Date.now() + idx,
-            salesName: String(col0).trim() || `Item / Baris #${idx + 1}`,
-            targetVal: !isNaN(parsedTarget) && parsedTarget !== 0 ? String(parsedTarget) : "0",
-            targetProfit: !isNaN(parsedTarget) && parsedTarget !== 0 ? String(parsedTarget) : "0",
-            actualVal: !isNaN(parsedActual) && parsedActual !== 0 ? String(parsedActual) : "0",
-            note: String(col3 || col2 || "").trim(),
-            topProducts: [
-              { id: Date.now() + idx + 1, productName: String(col0).trim(), totalQty: "", category: String(col3).trim() }
-            ]
-          };
-        });
-
-        setForm({
-          ...form,
-          salesPerformances: mappedPerformances
-        });
-
-        setSuccessMsg(true);
-        setTimeout(() => setSuccessMsg(false), 4000);
-      } catch (err) {
-        console.error("Gagal membaca file Excel:", err);
-        alert("Format file Excel tidak valid atau gagal dibaca!");
-      }
-    };
-
-    reader.readAsArrayBuffer(file);
+    try {
+      // kolom dikenali dari HEADER (Target/Aktual/Nama/Keterangan/Tahun), bukan urutan kolom
+      const res = await parseExcelFile(file, { year: form.year, sales: true });
+      setForm(applyExcelImport(form, res));
+      setSuccessMsg(true);
+      setTimeout(() => setSuccessMsg(false), 4000);
+    } catch (err) {
+      console.error("Gagal membaca file Excel:", err);
+      alert("File Excel tidak bisa dibaca: " + (err?.message || "format tidak valid"));
+    }
+    e.target.value = "";
   };
 
   return (

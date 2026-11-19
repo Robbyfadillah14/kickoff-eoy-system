@@ -32,7 +32,7 @@ export function blankForm() {
  * `id` dan `year` disuntikkan ke form saat render (agar form anak bisa membaca form.year / form.id),
  * lalu ikut tersalin ketika form anak memanggil setForm({...form}). Selalu buang sebelum disimpan/dibandingkan.
  */
-export const stripMeta = ({ id, year, ...rest } = {}) => rest;
+export const stripMeta = ({ id, year, __import, ...rest } = {}) => rest;
 export const snapshot = (f) => JSON.stringify(stripMeta(f));
 
 /** baris tabel yang benar-benar diisi (baris kosong bawaan form tidak ikut disimpan) */
