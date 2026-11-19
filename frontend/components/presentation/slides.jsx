@@ -1,41 +1,42 @@
+
 import React from "react";
 import { BRAND, phaseColor, statusOf } from "../../lib/presentation/theme.js";
-
+ 
 export const Glass = ({ children, style, accent }) => (
   <div style={{ background: BRAND.panel, border: `1px solid ${accent ? accent + "55" : BRAND.line}`, borderRadius: 18, padding: 22, ...style }}>{children}</div>
 );
-
+ 
 export const Eyebrow = ({ children, color = BRAND.cyan }) => (
   <div style={{ fontSize: 12, letterSpacing: 3, fontWeight: 700, color, textTransform: "uppercase" }}>{children}</div>
 );
-
+ 
 export const Title = ({ children, size = 38 }) => (
   <h2 style={{ margin: "6px 0 0", fontSize: size, lineHeight: 1.1, fontWeight: 800, letterSpacing: -0.5 }}>{children}</h2>
 );
-
+ 
 export const SlideHead = ({ eyebrow, title, color, right }) => (
   <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 26 }}>
     <div><Eyebrow color={color}>{eyebrow}</Eyebrow><Title>{title}</Title></div>
     {right}
   </div>
 );
-
+ 
 export const Empty = ({ children = "Belum diisi", hint }) => (
   <div style={{ border: `1px dashed ${BRAND.line}`, borderRadius: 14, padding: "18px 20px", color: BRAND.muted, fontSize: 15 }}>
     {children}{hint && <div style={{ fontSize: 12, marginTop: 6 }}>{hint}</div>}
   </div>
 );
-
+ 
 export const Pill = ({ pct }) => {
   const s = statusOf(pct);
   return <span style={{ fontSize: 12, fontWeight: 700, color: s.color, background: s.color + "1f", border: `1px solid ${s.color}55`, borderRadius: 99, padding: "3px 10px" }}>{s.label}</span>;
 };
-
+ 
 /** teks persen yang aman untuk layout: nilai sangat besar ditulis "999%+" (nilai asli tetap di aria-label / tooltip) */
 export const pctText = (v, d = 1) => (v == null ? "—" : v >= 1000 ? "999%+" : `${v.toFixed(d)}%`);
 /** ukuran font menyesuaikan panjang teks agar tidak terpotong/membungkus */
 export const fitSize = (text, big = 72, min = 40) => { const n = String(text).length; return n <= 6 ? big : n <= 8 ? Math.round(big * 0.78) : n <= 10 ? Math.round(big * 0.6) : min; };
-
+ 
 export function ArcGauge({ pct, size = 190, color }) {
   const v = Math.max(0, Math.min(130, pct ?? 0));
   const s = statusOf(pct); const c = color || s.color;
@@ -52,7 +53,7 @@ export function ArcGauge({ pct, size = 190, color }) {
     </svg>
   );
 }
-
+ 
 /** bar per tahun; tahun tanpa data tampil sebagai batang kosong bergaris putus (bukan 0) */
 export function YearBars({ rows, target = 100, height = 400 }) {
   const max = Math.min(200, Math.max(110, ...rows.map((r) => r.value ?? 0))); // batang dipotong di 200% agar tidak menggepengkan tahun lain
@@ -78,7 +79,7 @@ export function YearBars({ rows, target = 100, height = 400 }) {
     </svg>
   );
 }
-
+ 
 export function CoverSlide({ eyebrow, title, subtitle, meta = [], accent = BRAND.cyan }) {
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", justifyContent: "center", gap: 18 }}>
@@ -91,7 +92,7 @@ export function CoverSlide({ eyebrow, title, subtitle, meta = [], accent = BRAND
     </div>
   );
 }
-
+ 
 /** Run / Grow / Transform — satu kolom per fase dengan teks nyata dari laporan tiap tahun */
 export function JourneySlide({ columns }) {
   return (
@@ -117,14 +118,14 @@ export function JourneySlide({ columns }) {
     </div>
   );
 }
-
+ 
 /** 2027 — outlook & inovasi, per departemen (bukan satu teks campuran) */
 export function FutureSlide({ outlooks, wins = [], risks = [], hint }) {
   const col = phaseColor("Future");
   return (
     <div>
       <SlideHead eyebrow="Tahun 2027 · Future" title="Harapan & inovasi ke depan" color={col} />
-      <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: 20 }}>
+      <div style={{ display: "grid", gridTemplateColumns: wins.length || risks.length ? "1.5fr 1fr" : "1fr", gap: 20 }}>
         <div style={{ display: "grid", gap: 12, alignContent: "start" }}>
           {outlooks.length
             ? outlooks.slice(0, 4).map((o) => (
@@ -134,15 +135,16 @@ export function FutureSlide({ outlooks, wins = [], risks = [], hint }) {
                 </Glass>))
             : <Empty hint={hint || "Belum ada outlook 2027 dari departemen terkait."} />}
         </div>
-        <div style={{ display: "grid", gap: 14, alignContent: "start" }}>
+        {(wins.length || risks.length) ? <div style={{ display: "grid", gap: 14, alignContent: "start" }}>
           <Glass><Eyebrow color={BRAND.emerald}>Peluang</Eyebrow>
             {wins.length ? <ul style={{ margin: "10px 0 0", paddingLeft: 18, display: "grid", gap: 10, fontSize: 19 }}>{wins.slice(0, 4).map((w, k) => <li key={k}>{w}</li>)}</ul> : <div style={{ color: BRAND.muted, marginTop: 8, fontSize: 14 }}>—</div>}
           </Glass>
           <Glass><Eyebrow color={BRAND.warn}>Tantangan</Eyebrow>
             {risks.length ? <ul style={{ margin: "10px 0 0", paddingLeft: 18, display: "grid", gap: 10, fontSize: 19 }}>{risks.slice(0, 4).map((w, k) => <li key={k}>{w}</li>)}</ul> : <div style={{ color: BRAND.muted, marginTop: 8, fontSize: 14 }}>—</div>}
           </Glass>
-        </div>
+        </div> : null}
       </div>
     </div>
   );
 }
+ 

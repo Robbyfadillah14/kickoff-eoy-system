@@ -3,7 +3,9 @@ import React, { useMemo } from "react";
 import DeckShell from "./DeckShell.jsx";
 import { CoverSlide, SlideHead, Glass, Eyebrow, ArcGauge, YearBars, Pill, Empty, JourneySlide, FutureSlide } from "./slides.jsx";
 import { achievementOf } from "./CommercialDeck.jsx";
-import { buildClusterData, collectByDept, toNum, phaseOf, BRAND, statusOf, isEmptyValue } from "../../lib/presentation/index.js";
+import { buildClusterData, collectByDept, resolveDepartment, toNum, phaseOf, BRAND, statusOf, isEmptyValue } from "../../lib/presentation/index.js";
+import { kpiMatrix, clip } from "../../lib/presentation/kpi.js";
+import { DeptMatrixSlide } from "./KpiDeck.jsx";
 
 const ACTUAL_YEARS = [2024, 2025, 2026];
 const asList = (v) => (Array.isArray(v) ? v : v ? [v] : []).map((x) => (typeof x === "string" ? x : x?.title || x?.text || "")).filter(Boolean);
@@ -16,12 +18,12 @@ const txt = (v) => (isEmptyValue(v) ? null : String(v).trim());
  */
 export const CLUSTER_DECKS = {
   DIGITAL_MARKETING: {
-    title: "Digital Marketing", eyebrow: "Digital Marketing", accent: BRAND.emerald, itemHeading: "Capaian per campaign / metrik",
+    deptCode: "DIG_MKT", title: "Digital Marketing", eyebrow: "Digital Marketing", accent: BRAND.emerald, itemHeading: "Capaian per campaign / metrik",
     fields: [{ key: "leadGenAch", label: "Lead generation & conversion" }, { key: "socialMediaGrowth", label: "Social media growth" }],
     evaluationKey: "marketingEvaluation",
   },
   PRODUCT_DEVELOPMENT: {
-    title: "Product Development", eyebrow: "Product Development", accent: BRAND.cyan, itemHeading: "Capaian per item / produk",
+    deptCode: "PROD_DEV", title: "Product Development", eyebrow: "Product Development", accent: BRAND.cyan, itemHeading: "Capaian per item / produk",
     fields: [{ key: "newProductLaunch", label: "Riset & launching produk baru" }, { key: "sampleTesting", label: "Pengujian sampel & kepatuhan" }],
     evaluationKey: "productDevEvaluation",
   },
@@ -42,7 +44,8 @@ export function buildClusterSlides(data, cfg, { plantName = "" } = {}) {
   const firstText = (yr, k) => { for (const r of y[yr].reports) if (txt(r?.[k])) return txt(r[k]); return null; };
   const journey = ACTUAL_YEARS.map((yr) => {
     const m = y[yr].metrics;
-    const list = [firstText(yr, own[yr]), ...cfg.fields.map((f) => (txt(m[f.key]) ? `${f.label}: ${txt(m[f.key])}` : null)), txt(m[cfg.evaluationKey])].filter(Boolean);
+    // isian indikator per tahun ada di slide "Indikator"; kolom ini = RGT fase itu + evaluasi + catatan bebas (dipotong agar muat)
+    const list = [clip(firstText(yr, own[yr]) || "", 120), txt(m[cfg.evaluationKey]) && `Evaluasi: ${clip(txt(m[cfg.evaluationKey]), 120)}`, txt(m.generalNotes) && `Catatan: ${clip(txt(m.generalNotes), 120)}`].filter(Boolean);
     return { year: yr, phase: phaseOf(yr)?.phase, items: list };
   });
   const f = y[2027];
@@ -50,9 +53,12 @@ export function buildClusterSlides(data, cfg, { plantName = "" } = {}) {
   const wins = f.reports.flatMap((r) => asList(r.opportunities));
   const risks = f.reports.flatMap((r) => asList(r.challenges));
   const ey = latest ?? 2026;
+  const dept = resolveDepartment(cfg.deptCode);
+  const matrix = cfg.deptCode ? kpiMatrix(data, cfg.deptCode) : { rows: [], hasData: false };
+  const hasNumbers = latest != null || items.length > 0;
   const unit = (v) => (v == null ? "—" : v.toLocaleString("id-ID", { maximumFractionDigits: 2 }));
 
-  return [
+  const slides = [
     { id: "cover", label: "Cover", node: <CoverSlide accent={cfg.accent} eyebrow={cfg.eyebrow} title={`${cfg.title} 2024–2027`} subtitle="Dari fondasi (Run), pertumbuhan (Grow), transformasi (Transform) hingga arah 2027." meta={[plantName || "Plant terpilih", "Run 2024", "Grow 2025", "Transform 2026", "Future 2027"]} /> },
     { id: "exec", label: "Ringkasan", node: (
       <div>
@@ -78,9 +84,12 @@ export function buildClusterSlides(data, cfg, { plantName = "" } = {}) {
               </div>); })}
           </div>)}
       </div>) },
+    ...(matrix.hasData && dept ? [{ id: "matrix", label: "Indikator", node: <DeptMatrixSlide dept={dept} matrix={matrix} accent={cfg.accent} /> }] : []),
     { id: "journey", label: "Perjalanan", node: <JourneySlide columns={journey} /> },
     { id: "future", label: "2027", node: <FutureSlide outlooks={outlooks} wins={wins} risks={risks} hint={data.completeness[2027]?.missing?.length ? `Belum mengisi 2027: ${data.completeness[2027].missing.join(", ")}` : undefined} /> },
   ];
+  // tanpa tabel angka (isian teks saja): sembunyikan slide angka yang kosong, indikator tetap tampil di slide "Indikator"
+  return hasNumbers || !matrix.hasData ? slides : slides.filter((s) => !["exec", "trend", "items"].includes(s.id));
 }
 
 export default function ClusterDeck({ cluster, reports, plantId = null, plantName = "", active = true, onClose }) {

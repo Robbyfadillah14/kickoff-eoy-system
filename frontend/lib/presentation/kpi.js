@@ -14,6 +14,20 @@ import { isEmptyValue } from "./numbers.js";
  */
 
 export const DEPT_KPIS = {
+  DIG_MKT: {
+    evaluationKey: "marketingEvaluation",
+    kpis: [
+      { key: "leadGenAch",        label: "Lead generation & conversion rate", kind: "text" },
+      { key: "socialMediaGrowth", label: "Social media growth & engagement",  kind: "text" },
+    ],
+  },
+  PROD_DEV: {
+    evaluationKey: "productDevEvaluation",
+    kpis: [
+      { key: "newProductLaunch", label: "Riset & launching produk baru",       kind: "text" },
+      { key: "sampleTesting",    label: "Pengujian sampel & kepatuhan standar", kind: "text" },
+    ],
+  },
   FIN_DEPT: {
     evaluationKey: "financeDeptEvaluation",
     kpis: [

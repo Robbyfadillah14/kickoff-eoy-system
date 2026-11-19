@@ -31,7 +31,7 @@ function Cell({ c, future }) {
 }
 
 /** satu departemen x empat tahun */
-function DeptMatrixSlide({ dept, matrix, accent, support }) {
+export function DeptMatrixSlide({ dept, matrix, accent, support }) {
   const rows = matrix.rows.filter((r) => ALL_YEARS.some((y) => r.cells[y])).slice(0, 8);
   const grid = "290px 96px repeat(4, 1fr)";
   return (
