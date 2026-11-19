@@ -2,7 +2,7 @@
 import React, { useMemo } from "react";
 import DeckShell from "./DeckShell.jsx";
 import { CoverSlide, SlideHead, Glass, Eyebrow, ArcGauge, YearBars, Pill, Empty, JourneySlide, FutureSlide } from "./slides.jsx";
-import { buildClusterData, collectByDept, feedersOf, ownersOf, phaseOf, toNum, formatRupiah, BRAND, phaseColor, statusOf, isEmptyValue } from "../../lib/presentation/index.js";
+import { buildClusterData, collectByDept, resolveDepartment, feedersOf, ownersOf, phaseOf, toNum, formatRupiah, BRAND, phaseColor, statusOf, isEmptyValue } from "../../lib/presentation/index.js";
 import { DEPT_KPIS, OUTLOOK_KEYS, kpiMatrix, scoreOf, excelItems, clip } from "../../lib/presentation/kpi.js";
 
 const ACTUAL_YEARS = [2024, 2025, 2026];
@@ -95,10 +95,11 @@ function BadDebtSlide({ year, list, accent }) {
   );
 }
 
-export function buildKpiSlides(data, cfg, { plantName = "" } = {}) {
+export function buildKpiSlides(data, cfg, { plantName = "", deptCode = null } = {}) {
   if (data.needsPlant) return [{ id: "plant", label: "Pilih plant", node: <div style={{ height: "100%", display: "grid", placeItems: "center" }}><Empty hint="Data berisi lebih dari satu plant — pilih plant dulu agar angka tidak tercampur.">Plant belum dipilih</Empty></div> }];
 
-  const feeders = feedersOf(data.cluster).filter((d) => DEPT_KPIS[d.code]);
+  const feeders = feedersOf(data.cluster).filter((d) => DEPT_KPIS[d.code] && (!deptCode || d.code === deptCode));
+  const solo = deptCode ? feeders[0] : null; // mode satu divisi
   const codes = feeders.map((d) => d.code);
   const y = data.years;
   const ownCluster = (d) => d.cluster === data.cluster;
@@ -124,7 +125,7 @@ export function buildKpiSlides(data, cfg, { plantName = "" } = {}) {
 
   // bad debt (Finance AR)
   const bad = [];
-  if (data.cluster === "FINANCIAL") {
+  if (data.cluster === "FINANCIAL" && (!solo || solo.code === "FIN_AR")) {
     for (const yr of [...ACTUAL_YEARS].reverse()) {
       const l = y[yr].byDept.FIN_AR?.metrics?.badDebtList;
       const clean = (Array.isArray(l) ? l : []).filter((b) => txt(b?.customerName) || toNum(b?.amount));
@@ -135,7 +136,7 @@ export function buildKpiSlides(data, cfg, { plantName = "" } = {}) {
   // perjalanan: teks evaluasi per departemen + RGT dari laporan
   const firstText = (yr, k) => { for (const r of y[yr].reports) if (txt(r?.[k])) return txt(r[k]); return null; };
   const journey = ACTUAL_YEARS.map((yr) => {
-    const evals = Object.values(y[yr].byDept).map((e) => {
+    const evals = Object.values(y[yr].byDept).filter((e) => !solo || e.dept.code === solo.code).map((e) => {
       const key = DEPT_KPIS[e.dept.code]?.evaluationKey;
       const t = txt(e.metrics?.[key]) || txt(e.metrics?.generalNotes);
       return t ? `${e.dept.short}: ${clip(t, 84)}` : null;
@@ -154,7 +155,7 @@ export function buildKpiSlides(data, cfg, { plantName = "" } = {}) {
     : [];
 
   const slides = [
-    { id: "cover", label: "Cover", node: <CoverSlide accent={cfg.accent} eyebrow={cfg.eyebrow} title={`${cfg.title} 2024–2027`} subtitle={cfg.tagline} meta={[plantName || "Plant terpilih", "Run 2024", "Grow 2025", "Transform 2026", "Future 2027"]} /> },
+    { id: "cover", label: "Cover", node: <CoverSlide accent={cfg.accent} eyebrow={cfg.eyebrow} title={`${solo ? solo.name : cfg.title} 2024–2027`} subtitle={cfg.tagline} meta={[plantName || "Plant terpilih", "Run 2024", "Grow 2025", "Transform 2026", "Future 2027"]} /> },
   ];
 
   if (!deptSlides.length) {
@@ -163,7 +164,7 @@ export function buildKpiSlides(data, cfg, { plantName = "" } = {}) {
     slides.push(
       { id: "exec", label: "Ringkasan", node: (
         <div>
-          <SlideHead color={cfg.accent} eyebrow={latest ? `Ringkasan ${latest}` : "Ringkasan"} title={`Scorecard ${cfg.title}`} right={cur?.pct != null ? <Pill pct={cur.pct} /> : null} />
+          <SlideHead color={cfg.accent} eyebrow={latest ? `Ringkasan ${latest}` : "Ringkasan"} title={`Scorecard ${solo ? solo.name : cfg.title}`} right={cur?.pct != null ? <Pill pct={cur.pct} /> : null} />
           {!cur || cur.total === 0 ? <Empty hint="Belum ada indikator bertarget yang terisi pada 2024–2026 (indikator berupa informasi tidak masuk skor)." /> : (
             <div style={{ display: "grid", gridTemplateColumns: "330px 1fr", gap: 22 }}>
               <Glass style={{ display: "grid", placeItems: "center", alignContent: "center", gap: 6 }}>
@@ -172,7 +173,18 @@ export function buildKpiSlides(data, cfg, { plantName = "" } = {}) {
                 <div style={{ fontSize: 13, color: delta == null ? BRAND.muted : delta >= 0 ? BRAND.emerald : BRAND.bad }}>{delta == null ? "Tahun pembanding belum terisi" : `${delta >= 0 ? "+" : ""}${delta.toFixed(1)} pt vs ${latest - 1}`}</div>
               </Glass>
               <Glass>
-                <Eyebrow color={cfg.accent}>Per departemen · {latest}</Eyebrow>
+                <Eyebrow color={cfg.accent}>{solo ? `Per indikator · ${latest}` : `Per departemen · ${latest}`}</Eyebrow>
+                {solo ? (
+                  <div style={{ display: "grid", gap: 9, marginTop: 14 }}>
+                    {kpiMatrix(data, solo.code, [latest]).rows.filter((r) => r.cells[latest]).slice(0, 7).map((r) => { const c = r.cells[latest]; const m = MET[String(c.met)]; return (
+                      <div key={r.key} style={{ display: "grid", gridTemplateColumns: "24px 1fr 90px 210px", gap: 12, alignItems: "center", fontSize: 17 }}>
+                        <span style={{ color: m.color, fontWeight: 800 }}>{m.mark}</span>
+                        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.label}</span>
+                        <span style={{ fontSize: 13, color: BRAND.muted }}>{r.targetLabel || ""}</span>
+                        <span title={c.raw} style={{ textAlign: "right", fontWeight: 700, color: c.met == null ? BRAND.text : m.color, fontSize: 15, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.display}</span>
+                      </div>); })}
+                  </div>
+                ) : (
                 <div style={{ display: "grid", gap: 14, marginTop: 16 }}>
                   {feeders.map((d) => { const s = scoreOf(data, [d.code], latest); const st = statusOf(s.pct); const filled = !!y[latest].byDept[d.code]; return (
                     <div key={d.code} style={{ display: "grid", gridTemplateColumns: "190px 1fr 120px", gap: 16, alignItems: "center", fontSize: 18 }}>
@@ -181,7 +193,8 @@ export function buildKpiSlides(data, cfg, { plantName = "" } = {}) {
                       <div style={{ textAlign: "right", fontWeight: 700, color: s.pct == null ? BRAND.muted : st.color, fontSize: 15 }}>{s.pct != null ? `${s.ok}/${s.total}` : filled ? "info" : "belum isi"}</div>
                     </div>); })}
                 </div>
-                <div style={{ marginTop: 18, fontSize: 12, color: BRAND.muted }}>{data.completeness[ey]?.filled ?? 0}/{data.completeness[ey]?.total ?? 0} departemen klaster mengisi laporan {ey}</div>
+                )}
+                <div style={{ marginTop: 18, fontSize: 12, color: BRAND.muted }}>{solo ? `Laporan ${ey} ${y[ey].byDept[solo.code] ? "sudah diisi" : "belum diisi"}` : `${data.completeness[ey]?.filled ?? 0}/${data.completeness[ey]?.total ?? 0} departemen klaster mengisi laporan ${ey}`}</div>
               </Glass>
               <Glass style={{ gridColumn: "1 / -1", padding: "16px 22px" }}>
                 <Eyebrow color={attention.length ? BRAND.warn : BRAND.emerald}>{attention.length ? `Perlu perhatian · ${latest}` : `Semua indikator bertarget tercapai · ${latest}`}</Eyebrow>
@@ -203,15 +216,18 @@ export function buildKpiSlides(data, cfg, { plantName = "" } = {}) {
 
   slides.push(
     { id: "journey", label: "Perjalanan", node: <JourneySlide columns={journey} /> },
-    { id: "future", label: "2027", node: <FutureSlide outlooks={outlooks} wins={wins} risks={risks} hint={data.completeness[2027]?.missing?.length ? `Belum mengisi 2027: ${data.completeness[2027].missing.join(", ")}` : undefined} /> },
+    { id: "future", label: "2027", node: <FutureSlide outlooks={outlooks} wins={wins} risks={risks} hint={!solo && data.completeness[2027]?.missing?.length ? `Belum mengisi 2027: ${data.completeness[2027].missing.join(", ")}` : undefined} /> },
   );
   return slides;
 }
 
-export default function KpiDeck({ cluster, reports, plantId = null, plantName = "", active = true, onClose }) {
-  const cfg = KPI_DECKS[cluster];
-  const data = useMemo(() => buildClusterData(reports, { cluster, plantId }), [reports, cluster, plantId]);
-  const slides = useMemo(() => (cfg ? buildKpiSlides(data, cfg, { plantName }) : []), [data, cfg, plantName]);
+/** deptCode (opsional): tampilkan HANYA satu divisi (deck pegangan divisi). Klaster diambil dari divisi itu sendiri. */
+export default function KpiDeck({ cluster, deptCode = null, reports, plantId = null, plantName = "", active = true, onClose }) {
+  const dept = deptCode ? resolveDepartment(deptCode) : null;
+  const cl = dept ? dept.cluster : cluster;
+  const cfg = KPI_DECKS[cl];
+  const data = useMemo(() => buildClusterData(reports, { cluster: cl, plantId }), [reports, cl, plantId]);
+  const slides = useMemo(() => (cfg ? buildKpiSlides(data, cfg, { plantName, deptCode: dept?.code ?? null }) : []), [data, cfg, plantName, dept]);
   if (!cfg) return null;
-  return <DeckShell title={cfg.title} subtitle={plantName} slides={slides} accent={cfg.accent} active={active} onClose={onClose} />;
+  return <DeckShell title={dept ? dept.name : cfg.title} subtitle={plantName} slides={slides} accent={cfg.accent} active={active} onClose={onClose} fileName={`${dept ? dept.name : cfg.title}${plantName ? ` - ${plantName}` : ""} 2024-2027`} />;
 }

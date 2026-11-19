@@ -145,6 +145,7 @@ export default function DashboardPage() {
   if (!user) return <div className="min-h-screen bg-[#0d1117] p-4 text-slate-400 text-sm flex items-center justify-center">Memuat sesi pengguna...</div>;
 
   const myPlantName = plantById.get(userPlantId) || user?.plant?.name || "Cabang Anda";
+  const deptHref = (c) => `/presentation/dept?deptId=${c.departmentId}&plantId=${c.plantId}`;
   const liveHref = (c) => `/presentation/live?cluster=${c.dept.cluster}&plantId=${c.plantId}`;
 
   return (
@@ -234,7 +235,10 @@ export default function DashboardPage() {
 
                 <div className="flex items-center gap-2 pt-3 border-t border-slate-800/80">
                   {c.dept ? (
-                    <a href={liveHref(c)} className="flex-1 text-center py-2 bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-xs font-bold rounded-xl transition">▶ Presentasikan</a>
+                    <>
+                    <a href={deptHref(c)} className="flex-1 text-center py-2 bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-xs font-bold rounded-xl transition">▶ Presentasi Divisi</a>
+                    <a href={liveHref(c)} title="Deck gabungan seluruh divisi dalam klaster ini" className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl">Klaster</a>
+                    </>
                   ) : (
                     <span className="flex-1 text-center py-2 bg-slate-800 text-slate-500 text-xs rounded-xl cursor-not-allowed">Deck belum tersedia</span>
                   )}
