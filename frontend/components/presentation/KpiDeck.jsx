@@ -1,7 +1,7 @@
 "use client";
 import React, { useMemo } from "react";
 import DeckShell from "./DeckShell.jsx";
-import { CoverSlide, SlideHead, Glass, Eyebrow, ArcGauge, YearBars, Pill, Empty, JourneySlide, FutureSlide } from "./slides.jsx";
+import { CoverSlide, SlideHead, Glass, Eyebrow, ArcGauge, YearBars, Pill, Empty, JourneySlide, FutureSlide, ClosingSlide, TrendSlide, StatTile, ptText, deltaColor, pctText } from "./slides.jsx";
 import { buildClusterData, collectByDept, resolveDepartment, feedersOf, ownersOf, phaseOf, toNum, formatRupiah, BRAND, phaseColor, statusOf, isEmptyValue } from "../../lib/presentation/index.js";
 import { DEPT_KPIS, OUTLOOK_KEYS, kpiMatrix, scoreOf, excelItems, clip } from "../../lib/presentation/kpi.js";
 
@@ -25,7 +25,7 @@ function Cell({ c, future }) {
   return (
     <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
       <span style={{ color: col, fontWeight: 800, fontSize: 15, lineHeight: "20px" }}>{future ? "◆" : s.mark}</span>
-      <span title={c.raw} style={{ fontSize: c.display.length > 14 ? 14 : 20, fontWeight: c.display.length > 14 ? 500 : 800, lineHeight: 1.3, color: future ? BRAND.text : c.met == null ? BRAND.text : s.color, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{c.display}</span>
+      <span title={c.raw} style={{ fontSize: c.display.length > 14 ? 17 : 24, fontWeight: c.display.length > 14 ? 500 : 800, lineHeight: 1.3, color: future ? BRAND.text : c.met == null ? BRAND.text : s.color, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{c.display}</span>
     </div>
   );
 }
@@ -45,7 +45,7 @@ export function DeptMatrixSlide({ dept, matrix, accent, support }) {
       <div style={{ display: "grid", gap: rows.length > 6 ? 6 : 9 }}>
         {rows.map((r) => (
           <Glass key={r.key} style={{ padding: "11px 18px", display: "grid", gridTemplateColumns: grid, gap: "0 14px", alignItems: "center", minHeight: rows.length > 6 ? 48 : 56, boxSizing: "border-box" }}>
-            <div style={{ fontSize: 17, lineHeight: 1.25 }}>{r.label}</div>
+            <div style={{ fontSize: 20, lineHeight: 1.25 }}>{r.label}</div>
             <div style={{ fontSize: 14, color: BRAND.muted }}>{r.targetLabel || "—"}</div>
             {ALL_YEARS.map((y) => <Cell key={y} c={r.cells[y]} future={y === 2027} />)}
           </Glass>
@@ -62,7 +62,7 @@ function ExcelSlide({ dept, year, items, accent }) {
   return (
     <div>
       <SlideHead color={accent} eyebrow={`${dept.name} · ${year}`} title="Detail dari file Excel" />
-      <div style={{ display: "grid", gap: 16 }}>
+      <div style={{ display: "grid", gap: rows.length > 5 ? 16 : 26, alignContent: "center" }}>
         {rows.slice(0, 8).map((p, k) => { const s = statusOf(p.pct); return (
           <div key={k} style={{ display: "grid", gridTemplateColumns: "320px 1fr 210px", alignItems: "center", gap: 20, fontSize: 20 }}>
             <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}{p.note ? <div style={{ fontSize: 12, color: BRAND.muted, overflow: "hidden", textOverflow: "ellipsis" }}>{clip(p.note, 60)}</div> : null}</div>
@@ -164,7 +164,8 @@ export function buildKpiSlides(data, cfg, { plantName = "", deptCode = null } = 
     slides.push(
       { id: "exec", label: "Ringkasan", node: (
         <div>
-          <SlideHead color={cfg.accent} eyebrow={latest ? `Ringkasan ${latest}` : "Ringkasan"} title={`Scorecard ${solo ? solo.name : cfg.title}`} right={cur?.pct != null ? <Pill pct={cur.pct} /> : null} />
+          <SlideHead color={cfg.accent} eyebrow={latest ? `Ringkasan ${latest}` : "Ringkasan"} title={`Scorecard ${solo ? solo.name : cfg.title}`} right={cur?.pct != null ? <Pill pct={cur.pct} /> : null}
+            sub={cur && cur.total > 0 ? `${cur.ok} dari ${cur.total} indikator bertarget tercapai di ${latest}${delta == null ? "" : `, ${delta >= 0 ? "naik" : "turun"} ${Math.abs(delta).toFixed(1)} poin dibanding ${latest - 1}`}.` : undefined} />
           {!cur || cur.total === 0 ? <Empty hint="Belum ada indikator bertarget yang terisi pada 2024–2026 (indikator berupa informasi tidak masuk skor)." /> : (
             <div style={{ display: "grid", gridTemplateColumns: "330px 1fr", gap: 22 }}>
               <Glass style={{ display: "grid", placeItems: "center", alignContent: "center", gap: 6 }}>
@@ -175,13 +176,13 @@ export function buildKpiSlides(data, cfg, { plantName = "", deptCode = null } = 
               <Glass>
                 <Eyebrow color={cfg.accent}>{solo ? `Per indikator · ${latest}` : `Per departemen · ${latest}`}</Eyebrow>
                 {solo ? (
-                  <div style={{ display: "grid", gap: 9, marginTop: 14 }}>
+                  <div style={{ display: "grid", gap: 14, marginTop: 16 }}>
                     {kpiMatrix(data, solo.code, [latest]).rows.filter((r) => r.cells[latest]).slice(0, 7).map((r) => { const c = r.cells[latest]; const m = MET[String(c.met)]; return (
-                      <div key={r.key} style={{ display: "grid", gridTemplateColumns: "24px 1fr 90px 210px", gap: 12, alignItems: "center", fontSize: 17 }}>
+                      <div key={r.key} style={{ display: "grid", gridTemplateColumns: "28px 1fr 100px 230px", gap: 12, alignItems: "center", fontSize: 21 }}>
                         <span style={{ color: m.color, fontWeight: 800 }}>{m.mark}</span>
                         <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.label}</span>
                         <span style={{ fontSize: 13, color: BRAND.muted }}>{r.targetLabel || ""}</span>
-                        <span title={c.raw} style={{ textAlign: "right", fontWeight: 700, color: c.met == null ? BRAND.text : m.color, fontSize: 15, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.display}</span>
+                        <span title={c.raw} style={{ textAlign: "right", fontWeight: 700, color: c.met == null ? BRAND.text : m.color, fontSize: 19, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.display}</span>
                       </div>); })}
                   </div>
                 ) : (
@@ -209,7 +210,7 @@ export function buildKpiSlides(data, cfg, { plantName = "", deptCode = null } = 
               </Glass>
             </div>)}
         </div>) },
-      { id: "trend", label: "Tren", node: (<div><SlideHead color={cfg.accent} eyebrow="Tren 2024–2026" title="Indikator tercapai per tahun" /><Glass style={{ display: "grid", placeItems: "center" }}><YearBars rows={ACTUAL_YEARS.map((yr) => ({ year: yr, phase: phaseOf(yr)?.phase, value: scores.find((s) => s.year === yr).pct }))} /></Glass></div>) },
+      { id: "trend", label: "Tren", node: <TrendSlide accent={cfg.accent} title="Indikator tercapai per tahun" rows={ACTUAL_YEARS.map((yr) => ({ year: yr, phase: phaseOf(yr)?.phase, value: scores.find((s) => s.year === yr).pct }))} noun="Indikator tercapai" /> },
       ...deptSlides, ...bad,
     );
   }
@@ -217,6 +218,11 @@ export function buildKpiSlides(data, cfg, { plantName = "", deptCode = null } = 
   slides.push(
     { id: "journey", label: "Perjalanan", node: <JourneySlide columns={journey} /> },
     { id: "future", label: "2027", node: <FutureSlide outlooks={outlooks} wins={wins} risks={risks} hint={!solo && data.completeness[2027]?.missing?.length ? `Belum mengisi 2027: ${data.completeness[2027].missing.join(", ")}` : undefined} /> },
+    ...(latest && cur?.total > 0 || outlooks.length ? [{ id: "closing", label: "Penutup", node: <ClosingSlide accent={cfg.accent} title="Ringkasan & langkah berikutnya"
+      subtitle={cur && cur.total > 0 ? `${solo ? solo.name : cfg.title} ${latest}: ${cur.ok} dari ${cur.total} indikator bertarget tercapai — yang patut dirayakan, dijaga, dan dikejar di 2027.` : undefined}
+      wins={latest ? feeders.flatMap((d) => kpiMatrix(data, d.code, [latest]).rows.filter((r) => r.cells[latest]?.met === true).map((r) => `${solo ? "" : d.short + ": "}${r.label} — ${r.cells[latest].display}`)) : []}
+      watch={attention.map((a) => `${solo ? "" : a.dept + ": "}${a.label} — ${a.shown}${a.target ? ` (target ${a.target})` : ""}`)}
+      next={outlooks.slice(0, 3).map((o) => clip(String(o.value), 110))} /> }] : []),
   );
   return slides;
 }
