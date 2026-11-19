@@ -1,4 +1,4 @@
-import { DEPARTMENTS } from "../departments.js";
+import { DEPARTMENTS } from "./departments.js";
 
 /** Peta tahun -> fase cerita (Run · Grow · Transform · Future) */
 export const YEARS = [
