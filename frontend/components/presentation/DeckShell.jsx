@@ -47,10 +47,10 @@ const StageFooter = ({ index, total, accent = BRAND.cyan, bare = false }) => bar
  * lalu window.print() -> pilih "Simpan sebagai PDF". Tampilan sama persis dengan layar (bukan tangkapan layar).
  * fileName dipakai sebagai nama file (browser memakai document.title).
  */
-export default function DeckShell({ title, subtitle, slides, accent = BRAND.cyan, active = true, autoplayMs = 9000, onClose, fileName, printable = true, lockTheme = null, bare = false, stageBgOverride = null }) {
+export default function DeckShell({ title, subtitle, slides, accent = BRAND.cyan, active = true, autoplayMs = 9000, onClose, fileName, printable = true, lockTheme = null, bare = false, stageBgOverride = null, defaultTheme = "light" }) {
   const [printing, setPrinting] = useState(false);
   // tema deck: terang (default, nyaman dibaca di ruang rapat & saat dicetak) atau gelap; pilihan diingat per browser
-  const [theme0, setTheme] = useState("light");
+  const [theme0, setTheme] = useState(defaultTheme);
   const theme = lockTheme || theme0;
   useEffect(() => { if (lockTheme) return; try { const t = localStorage.getItem("dk-theme"); if (t === "dark" || t === "light") setTheme(t); } catch {} }, []);
   const toggleTheme = useCallback(() => setTheme((t) => { const n = t === "dark" ? "light" : "dark"; try { localStorage.setItem("dk-theme", n); } catch {} return n; }), []);

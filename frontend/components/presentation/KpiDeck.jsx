@@ -1,6 +1,7 @@
 "use client";
 import React, { useMemo } from "react";
 import DeckShell from "./DeckShell.jsx";
+import { DashboardSlide, PanelsSlide } from "./KpiDashboard.jsx";
 import { CoverSlide, SlideHead, Glass, Eyebrow, ArcGauge, YearBars, Pill, Empty, JourneySlide, FutureSlide, ClosingSlide, TrendSlide, StatTile, ptText, deltaColor, pctText } from "./slides.jsx";
 import { buildClusterData, collectByDept, resolveDepartment, feedersOf, ownersOf, phaseOf, toNum, formatRupiah, BRAND, phaseColor, statusOf, isEmptyValue } from "../../lib/presentation/index.js";
 import { DEPT_KPIS, OUTLOOK_KEYS, kpiMatrix, scoreOf, excelItems, clip } from "../../lib/presentation/kpi.js";
@@ -83,11 +84,11 @@ function BadDebtSlide({ year, list, accent }) {
         right={<div style={{ textAlign: "right" }}><div style={{ fontSize: 12, letterSpacing: 2, color: BRAND.muted }}>TOTAL</div><div style={{ fontSize: 34, fontWeight: 800, color: BRAND.bad }}>{formatRupiah(total)}</div></div>} />
       <div style={{ display: "grid", gap: 10 }}>
         {list.slice(0, 7).map((b, k) => (
-          <Glass key={b.id ?? k} style={{ padding: "12px 20px", display: "grid", gridTemplateColumns: "1fr 190px 170px 1fr", gap: 16, alignItems: "center", fontSize: 18 }}>
+          <Glass key={b.id ?? k} style={{ padding: "12px 20px", display: "grid", gridTemplateColumns: "1fr 190px 170px 1fr", gap: 16, alignItems: "center", fontSize: 24 }}>
             <div style={{ fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{b.customerName}</div>
-            <div style={{ color: BRAND.muted, fontSize: 15 }}>{b.salesPic || "—"}</div>
+            <div style={{ color: BRAND.muted, fontSize: 18 }}>{b.salesPic || "—"}</div>
             <div style={{ fontWeight: 800, color: BRAND.warn }}>{formatRupiah(b.amount)}</div>
-            <div style={{ fontSize: 15, color: BRAND.text }}>{clip(b.remarks || "—", 50)}</div>
+            <div style={{ fontSize: 18, color: BRAND.text }}>{clip(b.remarks || "—", 50)}</div>
           </Glass>))}
         {list.length > 7 && <div style={{ color: BRAND.muted, fontSize: 13 }}>+{list.length - 7} customer lain</div>}
       </div>
@@ -123,16 +124,6 @@ export function buildKpiSlides(data, cfg, { plantName = "", deptCode = null } = 
     if (items.length) deptSlides.push({ id: `x-${d.code}`, label: `${d.short} (Excel)`, node: <ExcelSlide dept={d} year={excelYear} items={items} accent={cfg.accent} /> });
   }
 
-  // bad debt (Finance AR)
-  const bad = [];
-  if (data.cluster === "FINANCIAL" && (!solo || solo.code === "FIN_AR")) {
-    for (const yr of [...ACTUAL_YEARS].reverse()) {
-      const l = y[yr].byDept.FIN_AR?.metrics?.badDebtList;
-      const clean = (Array.isArray(l) ? l : []).filter((b) => txt(b?.customerName) || toNum(b?.amount));
-      if (clean.length) { bad.push({ id: "baddebt", label: "Bad debt", node: <BadDebtSlide year={yr} list={clean} accent={cfg.accent} /> }); break; }
-    }
-  }
-
   // perjalanan: teks evaluasi per departemen + RGT dari laporan
   const firstText = (yr, k) => { for (const r of y[yr].reports) if (txt(r?.[k])) return txt(r[k]); return null; };
   const journey = ACTUAL_YEARS.map((yr) => {
@@ -154,6 +145,37 @@ export function buildKpiSlides(data, cfg, { plantName = "", deptCode = null } = 
     ? feeders.flatMap((d) => kpiMatrix(data, d.code, [latest]).rows.filter((r) => r.cells[latest]?.met === false).map((r) => ({ dept: d.short, label: r.label, shown: r.cells[latest].display, target: r.targetLabel })))
     : [];
 
+  // bad debt (Finance AR): tahun terbaru yang punya daftar
+  let badInfo = null;
+  if (data.cluster === "FINANCIAL" && (!solo || solo.code === "FIN_AR")) {
+    for (const yr of [...ACTUAL_YEARS].reverse()) {
+      const l = y[yr].byDept.FIN_AR?.metrics?.badDebtList;
+      const clean = (Array.isArray(l) ? l : []).filter((b) => txt(b?.customerName) || toNum(b?.amount));
+      if (clean.length) { badInfo = { year: yr, list: clean }; break; }
+    }
+  }
+  const bad = badInfo ? [{ id: "baddebt", label: "Bad debt", node: <BadDebtSlide year={badInfo.year} list={badInfo.list} accent={cfg.accent} /> }] : [];
+  // panel per departemen (klaster) / per indikator (satu divisi)
+  const panelItems = solo
+    ? kpiMatrix(data, solo.code).rows.filter((r) => ACTUAL_YEARS.some((yr) => r.cells[yr])).map((r) => {
+        const cs = ACTUAL_YEARS.map((yr) => r.cells[yr]);
+        const lastC = [...cs].reverse().find(Boolean);
+        const hasVal = cs.some((c) => c && c.value != null), hasMet = cs.some((c) => c && c.met != null);
+        const base = { key: r.key, title: r.label, tag: r.targetLabel ? `target ${r.targetLabel}` : undefined, label: `${latest ?? ""}`, value: clip(lastC?.display ?? "—", 12), icon: "target" };
+        if (hasVal) { const vals = cs.map((c) => (c && c.value != null ? c.value : null)); return { ...base, numeric: true, values: vals, max: r.kind === "pct" ? Math.max(100, ...vals.map((v) => v ?? 0)) : Math.max(1, ...vals.map((v) => v ?? 0)) * 1.15, fmt: (v) => (r.kind === "pct" ? `${Math.round(v)}%` : `${Math.round(v * 10) / 10}`) }; }
+        if (hasMet) return { ...base, numeric: true, values: cs.map((c) => (c && c.met != null ? (c.met ? 100 : 35) : null)), max: 100, fmt: (v) => (v >= 100 ? "✓" : "✕") };
+        return { ...base, text: clip(lastC?.raw ?? "", 150) };
+      })
+    : feeders.map((d) => {
+        const vs = ACTUAL_YEARS.map((yr) => { const s = scoreOf(data, [d.code], yr); return s.total > 0 ? s.pct : null; });
+        const sl = latest ? scoreOf(data, [d.code], latest) : null;
+        const key = DEPT_KPIS[d.code]?.evaluationKey; const ev = ACTUAL_YEARS.map((yr) => txt(y[yr].byDept[d.code]?.metrics?.[key])).filter(Boolean).pop();
+        const filled = ACTUAL_YEARS.some((yr) => y[yr].byDept[d.code]);
+        if (!filled) return null;
+        const base = { key: d.code, title: d.short, icon: "layers", tag: ownCluster(d) ? undefined : "pendukung", label: `${latest ?? ""} · ${sl?.ok ?? 0}/${sl?.total ?? 0}`, value: sl && sl.total > 0 ? `${sl.pct.toFixed(0)}%` : "info" };
+        return vs.some((v) => v != null) ? { ...base, numeric: true, values: vs, max: 100, fmt: (v) => `${Math.round(v)}%` } : { ...base, text: clip(ev || "Isian informasi (tanpa target angka).", 150) };
+      }).filter(Boolean);
+
   const slides = [
     { id: "cover", label: "Cover", node: <CoverSlide accent={cfg.accent} eyebrow={cfg.eyebrow} title={`${solo ? solo.name : cfg.title} 2024–2027`} subtitle={cfg.tagline} meta={[plantName || "Plant terpilih", "Run 2024", "Grow 2025", "Transform 2026", "Future 2027"]} /> },
   ];
@@ -162,55 +184,12 @@ export function buildKpiSlides(data, cfg, { plantName = "", deptCode = null } = 
     slides.push({ id: "empty", label: "Data", node: <div><SlideHead color={cfg.accent} eyebrow="Data" title={cfg.title} /><Empty hint="Belum ada form departemen di klaster ini yang terisi. Isi lewat form (manual atau upload Excel) lalu muat ulang." /></div> });
   } else {
     slides.push(
-      { id: "exec", label: "Ringkasan", node: (
-        <div>
-          <SlideHead color={cfg.accent} eyebrow={latest ? `Ringkasan ${latest}` : "Ringkasan"} title={`Scorecard ${solo ? solo.name : cfg.title}`} right={cur?.pct != null ? <Pill pct={cur.pct} /> : null}
-            sub={cur && cur.total > 0 ? `${cur.ok} dari ${cur.total} indikator bertarget tercapai di ${latest}${delta == null ? "" : `, ${delta >= 0 ? "naik" : "turun"} ${Math.abs(delta).toFixed(1)} poin dibanding ${latest - 1}`}.` : undefined} />
-          {!cur || cur.total === 0 ? <Empty hint="Belum ada indikator bertarget yang terisi pada 2024–2026 (indikator berupa informasi tidak masuk skor)." /> : (
-            <div style={{ display: "grid", gridTemplateColumns: "330px 1fr", gap: 22 }}>
-              <Glass style={{ display: "grid", placeItems: "center", alignContent: "center", gap: 6 }}>
-                <ArcGauge pct={cur.pct} size={250} color={cfg.accent} />
-                <div style={{ fontSize: 17, color: BRAND.text }}>{cur.ok} dari {cur.total} indikator tercapai</div>
-                <div style={{ fontSize: 13, color: delta == null ? BRAND.muted : delta >= 0 ? BRAND.emerald : BRAND.bad }}>{delta == null ? "Tahun pembanding belum terisi" : `${delta >= 0 ? "+" : ""}${delta.toFixed(1)} pt vs ${latest - 1}`}</div>
-              </Glass>
-              <Glass>
-                <Eyebrow color={cfg.accent}>{solo ? `Per indikator · ${latest}` : `Per departemen · ${latest}`}</Eyebrow>
-                {solo ? (
-                  <div style={{ display: "grid", gap: 14, marginTop: 16 }}>
-                    {kpiMatrix(data, solo.code, [latest]).rows.filter((r) => r.cells[latest]).slice(0, 7).map((r) => { const c = r.cells[latest]; const m = MET[String(c.met)]; return (
-                      <div key={r.key} style={{ display: "grid", gridTemplateColumns: "28px 1fr 100px 230px", gap: 12, alignItems: "center", fontSize: 21 }}>
-                        <span style={{ color: m.color, fontWeight: 800 }}>{m.mark}</span>
-                        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.label}</span>
-                        <span style={{ fontSize: 13, color: BRAND.muted }}>{r.targetLabel || ""}</span>
-                        <span title={c.raw} style={{ textAlign: "right", fontWeight: 700, color: c.met == null ? BRAND.text : m.color, fontSize: 19, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.display}</span>
-                      </div>); })}
-                  </div>
-                ) : (
-                <div style={{ display: "grid", gap: 14, marginTop: 16 }}>
-                  {feeders.map((d) => { const s = scoreOf(data, [d.code], latest); const st = statusOf(s.pct); const filled = !!y[latest].byDept[d.code]; return (
-                    <div key={d.code} style={{ display: "grid", gridTemplateColumns: "190px 1fr 120px", gap: 16, alignItems: "center", fontSize: 18 }}>
-                      <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.short}{!ownCluster(d) && <span style={{ fontSize: 11, color: BRAND.muted }}> · pendukung</span>}</div>
-                      <div style={{ height: 14, background: BRAND.line, borderRadius: 99, overflow: "hidden" }}>{s.pct != null && <div style={{ width: `${Math.min(100, s.pct)}%`, height: "100%", background: st.color, borderRadius: 99 }} />}</div>
-                      <div style={{ textAlign: "right", fontWeight: 700, color: s.pct == null ? BRAND.muted : st.color, fontSize: 15 }}>{s.pct != null ? `${s.ok}/${s.total}` : filled ? "info" : "belum isi"}</div>
-                    </div>); })}
-                </div>
-                )}
-                <div style={{ marginTop: 18, fontSize: 12, color: BRAND.muted }}>{solo ? `Laporan ${ey} ${y[ey].byDept[solo.code] ? "sudah diisi" : "belum diisi"}` : `${data.completeness[ey]?.filled ?? 0}/${data.completeness[ey]?.total ?? 0} departemen klaster mengisi laporan ${ey}`}</div>
-              </Glass>
-              <Glass style={{ gridColumn: "1 / -1", padding: "16px 22px" }}>
-                <Eyebrow color={attention.length ? BRAND.warn : BRAND.emerald}>{attention.length ? `Perlu perhatian · ${latest}` : `Semua indikator bertarget tercapai · ${latest}`}</Eyebrow>
-                {attention.length > 0 && (
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 12 }}>
-                    {attention.slice(0, 6).map((a, k) => (
-                      <span key={k} style={{ fontSize: 15, border: `1px solid ${BRAND.bad}55`, background: `${BRAND.bad}14`, borderRadius: 99, padding: "6px 14px" }}>
-                        <b style={{ color: BRAND.bad }}>{a.dept}</b> · {a.label}: {a.shown}{a.target ? <span style={{ color: BRAND.muted }}> (target {a.target})</span> : null}
-                      </span>))}
-                    {attention.length > 6 && <span style={{ fontSize: 14, color: BRAND.muted, alignSelf: "center" }}>+{attention.length - 6} lainnya</span>}
-                  </div>)}
-              </Glass>
-            </div>)}
-        </div>) },
-      { id: "trend", label: "Tren", node: <TrendSlide accent={cfg.accent} title="Indikator tercapai per tahun" rows={ACTUAL_YEARS.map((yr) => ({ year: yr, phase: phaseOf(yr)?.phase, value: scores.find((s) => s.year === yr).pct }))} noun="Indikator tercapai" /> },
+      { id: "dashboard", label: "Dashboard", node: <DashboardSlide title={`${solo ? solo.name : cfg.title} · KPI Dashboard`} plantName={plantName} latest={latest} scores={scores} cur={cur} delta={delta}
+          rows={latest ? feeders.flatMap((d) => kpiMatrix(data, d.code, [latest]).rows.filter((r) => r.cells[latest]).map((r) => ({ dept: d.short, label: r.label, targetLabel: r.targetLabel, cell: r.cells[latest] }))) : []}
+          attention={attention} badDebt={badInfo} solo={!!solo}
+          completeness={Object.fromEntries(ALL_YEARS.map((yr) => [yr, data.completeness[yr] || null]))}
+          filledNote={solo ? `Laporan ${ey} ${y[ey].byDept[solo.code] ? "sudah diisi" : "belum diisi"}.` : `${data.completeness[ey]?.filled ?? 0}/${data.completeness[ey]?.total ?? 0} departemen klaster mengisi laporan ${ey}.`} /> },
+      { id: "panels", label: solo ? "Per indikator" : "Per departemen", node: <PanelsSlide eyebrow={`${solo ? solo.name : cfg.title} · 2024–2026`} title={solo ? "Capaian per indikator" : "Capaian per departemen"} items={panelItems} /> },
       ...deptSlides, ...bad,
     );
   }
@@ -220,8 +199,8 @@ export function buildKpiSlides(data, cfg, { plantName = "", deptCode = null } = 
     { id: "future", label: "2027", node: <FutureSlide outlooks={outlooks} wins={wins} risks={risks} hint={!solo && data.completeness[2027]?.missing?.length ? `Belum mengisi 2027: ${data.completeness[2027].missing.join(", ")}` : undefined} /> },
     ...(latest && cur?.total > 0 || outlooks.length ? [{ id: "closing", label: "Penutup", node: <ClosingSlide accent={cfg.accent} title="Ringkasan & langkah berikutnya"
       subtitle={cur && cur.total > 0 ? `${solo ? solo.name : cfg.title} ${latest}: ${cur.ok} dari ${cur.total} indikator bertarget tercapai — yang patut dirayakan, dijaga, dan dikejar di 2027.` : undefined}
-      wins={latest ? feeders.flatMap((d) => kpiMatrix(data, d.code, [latest]).rows.filter((r) => r.cells[latest]?.met === true).map((r) => `${solo ? "" : d.short + ": "}${r.label} — ${r.cells[latest].display}`)) : []}
-      watch={attention.map((a) => `${solo ? "" : a.dept + ": "}${a.label} — ${a.shown}${a.target ? ` (target ${a.target})` : ""}`)}
+      wins={latest ? feeders.flatMap((d) => kpiMatrix(data, d.code, [latest]).rows.filter((r) => r.cells[latest]?.met === true).map((r) => clip(`${solo ? "" : d.short + ": "}${r.label} — ${r.cells[latest].display}`, 62))) : []}
+      watch={attention.map((a) => clip(`${solo ? "" : a.dept + ": "}${a.label} — ${a.shown}${a.target ? ` (target ${a.target})` : ""}`, 62))}
       next={outlooks.slice(0, 3).map((o) => clip(String(o.value), 110))} /> }] : []),
   );
   return slides;
@@ -235,5 +214,5 @@ export default function KpiDeck({ cluster, deptCode = null, reports, plantId = n
   const data = useMemo(() => buildClusterData(reports, { cluster: cl, plantId }), [reports, cl, plantId]);
   const slides = useMemo(() => (cfg ? buildKpiSlides(data, cfg, { plantName, deptCode: dept?.code ?? null }) : []), [data, cfg, plantName, dept]);
   if (!cfg) return null;
-  return <DeckShell title={dept ? dept.name : cfg.title} subtitle={plantName} slides={slides} accent={cfg.accent} active={active} onClose={onClose} fileName={`${dept ? dept.name : cfg.title}${plantName ? ` - ${plantName}` : ""} 2024-2027`} />;
+  return <DeckShell title={dept ? dept.name : cfg.title} subtitle={plantName} slides={slides} accent={cfg.accent} active={active} onClose={onClose} defaultTheme="dark" fileName={`${dept ? dept.name : cfg.title}${plantName ? ` - ${plantName}` : ""} 2024-2027`} />;
 }
