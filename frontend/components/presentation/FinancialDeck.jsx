@@ -82,7 +82,6 @@ function useCountUp(target, duration = 1000) {
   return v;
 }
 
-/* angka berhitung naik (hanya kalau nilainya murni angka / persen) */
 function AnimatedValue({ text, className = "", style }) {
   const s = String(text ?? "");
   const m = s.match(/^\s*(-?\d+(?:[.,]\d+)?)\s*(%?)\s*$/);
@@ -147,7 +146,6 @@ function EmptyCard({ label, className = "" }) {
   );
 }
 
-/* Cincin penuh */
 function Ring({ pct, color, size = 112, stroke = 8, children }) {
   const m = useMounted();
   const r = (100 - stroke) / 2;
@@ -168,7 +166,6 @@ function Ring({ pct, color, size = 112, stroke = 8, children }) {
   );
 }
 
-/* Gauge busur 240° dengan tick & penanda target */
 function ArcGauge({ pct, color, target, width = 196, children }) {
   const m = useMounted();
   const v = Math.min(Math.max(pct, 0), 100);
@@ -207,7 +204,6 @@ function ArcGauge({ pct, color, target, width = 196, children }) {
   );
 }
 
-/* KPI persen -> gauge busur */
 function GaugeCard({ label, value, target, targetNum, icon, accent, good, d = 0, compact = false }) {
   if (!hasVal(value)) return <EmptyCard label={label} />;
   const color = good ? GOOD : WARN;
@@ -229,7 +225,6 @@ function GaugeCard({ label, value, target, targetNum, icon, accent, good, d = 0,
   );
 }
 
-/* KPI umum (teks / tanggal / angka) */
 function StatCard({ label, value, target, icon, accent, good = true, showBar = false, d = 0 }) {
   const m = useMounted();
   if (!hasVal(value)) return <EmptyCard label={label} />;
@@ -256,7 +251,6 @@ function StatCard({ label, value, target, icon, accent, good = true, showBar = f
   );
 }
 
-/* Meter batas maksimum (faktur revisi / batal) */
 function LimitMeter({ label, value, limit, icon, accent, d = 0 }) {
   const m = useMounted();
   if (!hasVal(value)) return <EmptyCard label={label} />;
@@ -287,7 +281,6 @@ function LimitMeter({ label, value, limit, icon, accent, d = 0 }) {
   );
 }
 
-/* Panel teks evaluasi */
 function InsightPanel({ title, text, accent = COLOR.cyan, icon = Zap, className = "", d = 0 }) {
   return (
     <Glass d={d} className={`p-6 flex flex-col h-full min-h-0 ${className}`}>
@@ -306,7 +299,6 @@ function InsightPanel({ title, text, accent = COLOR.cyan, icon = Zap, className 
   );
 }
 
-/* Kerangka tiap slide */
 function SlideShell({ icon, kicker, title, subtitle, accent, no, children }) {
   return (
     <div className="absolute inset-0 p-9 flex flex-col gap-5">
@@ -338,7 +330,6 @@ function SlideShell({ icon, kicker, title, subtitle, accent, no, children }) {
   );
 }
 
-/* Strip tenggat tanggal 1-31 (target vs realisasi) */
 function DeadlineStrip({ items }) {
   return (
     <Glass d={4} className="px-6 pt-4 pb-3 shrink-0" style={{ height: 132 }}>
@@ -381,15 +372,16 @@ function DeadlineStrip({ items }) {
 /*  MAIN COMPONENT                                                     */
 /* ------------------------------------------------------------------ */
 export default function FinancialDeck({ report, allYearlyReports = {} }) {
-  const currentYr = 2026;
+  // 8 Slide total sekarang (termasuk slide Evolusi baru)
   const slideLabels = [
     "1. Executive Command",
-    "2. Finance AR (Piutang)",
-    "3. Finance AP (Hutang)",
-    "4. Accounting & Tax",
-    "5. Admin TF",
-    "6. Global Trade (Exim)",
-    "7. Horizon 2027"
+    "2. Evolusi 2024-2026",
+    "3. Finance AR (Piutang)",
+    "4. Finance AP (Hutang)",
+    "5. Accounting & Tax",
+    "6. Admin TF",
+    "7. Global Trade (Exim)",
+    "8. Horizon 2027"
   ];
   const totalSlides = slideLabels.length;
 
@@ -423,54 +415,74 @@ export default function FinancialDeck({ report, allYearlyReports = {} }) {
     return () => clearInterval(timer);
   }, [isPlaying, totalSlides]);
 
+  // 1. STORYTELLING ENGINE: Tarik data 2024, 2025, 2026, 2027 untuk departemen ini
   const data = useMemo(() => {
-    const matches = allYearlyReports[currentYr] || (Array.isArray(allYearlyReports) ? allYearlyReports.filter(r => Number(r.year) === currentYr) : []);
-    const rep = matches.length > 0 ? matches[0] : (Number(report?.year) === currentYr ? report : null);
-    const m = rep?.metricsJson || rep || {};
-    const hasData = !!rep;
+    const getYearData = (yr) => {
+      const rep = Array.isArray(allYearlyReports) 
+        ? allYearlyReports.find(r => Number(r.year) === yr && r.departmentId === report?.departmentId)
+        : (allYearlyReports[yr]?.find(r => r.departmentId === report?.departmentId) || null);
+      return rep?.metricsJson || {};
+    };
+
+    const d24 = getYearData(2024);
+    const d25 = getYearData(2025);
+    const d26 = getYearData(2026); // Latest / Transform
+    const d27 = getYearData(2027); // Future
+
+    const latest = d26; 
+    const hasData = Object.keys(latest).length > 0;
 
     return {
       hasData,
-      // Finance Dept
-      danaCadangan: m.danaCadangan || "",
-      executiveSummary: m.executiveSummary || m.financeDeptEvaluation || "",
-      // AR
-      arIdrAch: m.arIdrAch || "",
-      arUsdAch: m.arUsdAch || "",
-      badDebtControl: m.badDebtControl || "",
-      badDebtList: Array.isArray(m.badDebtList) ? m.badDebtList : [],
-      arEvaluation: m.arEvaluation || "",
-      // AP
-      monthlyReportDate: m.monthlyReportDate || "",
-      budgetHutangAch: m.budgetHutangAch || "",
-      claimSpaAch: m.claimSpaAch || "",
-      sapUpdateAch: m.sapUpdateAch || "",
-      apEvaluation: m.apEvaluation || "",
-      // Accounting & Tax
-      lapKeuanganDate: m.lapKeuanganDate || "",
-      taxConsultantReport: m.taxConsultantReport || "",
-      costCenterAnalysis: m.costCenterAnalysis || "",
-      assetUpdate: m.assetUpdate || "",
-      taxRevisi: m.taxRevisi || "",
-      taxBatal: m.taxBatal || "",
-      taxEvaluation: m.taxEvaluation || "",
-      // Admin TF
-      tfLuarKotaAch: m.tfLuarKotaAch || "",
-      tfEmailSistemAch: m.tfEmailSistemAch || "",
-      totalInvLuarKota: m.totalInvLuarKota || "",
-      totalInvEmailSistem: m.totalInvEmailSistem || "",
-      adminTfEvaluation: m.adminTfEvaluation || "",
-      // Exim
-      ipakCdakb: m.ipakCdakb || "",
-      pabeanCompliance: m.pabeanCompliance || "",
-      importQuotaStatus: m.importQuotaStatus || "",
-      gbCustomerTarget: m.gbCustomerTarget || "",
-      eximEvaluation: m.eximEvaluation || "",
-      // 2027
-      nextYearOutlook: m.nextYearOutlook || m.strategicInitiatives || "",
-      keyMilestones: m.keyMilestones || "",
+      latest,
+      
+      // 2. DATA TREN (Untuk Slide Evolusi)
+      trend: {
+        targetAchieved: [
+          { year: 2024, val: d24.targetAchievedPct || 0, label: "2024 (Run)", desc: d24.rgtRun || "Penguatan operasional harian." },
+          { year: 2025, val: d25.targetAchievedPct || 0, label: "2025 (Grow)", desc: d25.rgtGrow || "Perluasan efisiensi dan cakupan." },
+          { year: 2026, val: d26.targetAchievedPct || 0, label: "2026 (Transform)", desc: d26.rgtTransform || "Digitalisasi sistem terintegrasi." },
+        ]
+      },
+      
+      // 3. DATA 2027 (Future)
+      future: {
+        nextYearOutlook: d27.nextYearOutlook || d27.strategicInitiatives || "Belum ada proyeksi 2027",
+        keyMilestones: d27.keyMilestones || "Belum ada milestone 2027",
+      },
+
+      // Mapping data terbaru (2026) untuk slide detail
+      danaCadangan: latest.danaCadangan || "",
+      executiveSummary: latest.executiveSummary || latest.financeDeptEvaluation || "",
+      arIdrAch: latest.arIdrAch || "",
+      arUsdAch: latest.arUsdAch || "",
+      badDebtControl: latest.badDebtControl || "",
+      badDebtList: Array.isArray(latest.badDebtList) ? latest.badDebtList : [],
+      arEvaluation: latest.arEvaluation || "",
+      monthlyReportDate: latest.monthlyReportDate || "",
+      budgetHutangAch: latest.budgetHutangAch || "",
+      claimSpaAch: latest.claimSpaAch || "",
+      sapUpdateAch: latest.sapUpdateAch || "",
+      apEvaluation: latest.apEvaluation || "",
+      lapKeuanganDate: latest.lapKeuanganDate || "",
+      taxConsultantReport: latest.taxConsultantReport || "",
+      costCenterAnalysis: latest.costCenterAnalysis || "",
+      assetUpdate: latest.assetUpdate || "",
+      taxRevisi: latest.taxRevisi || "",
+      taxBatal: latest.taxBatal || "",
+      taxEvaluation: latest.taxEvaluation || latest.executiveSummary || "",
+      tfLuarKotaAch: latest.tfLuarKotaAch || "",
+      tfEmailSistemAch: latest.tfEmailSistemAch || "",
+      totalInvLuarKota: latest.totalInvLuarKota || "",
+      totalInvEmailSistem: latest.totalInvEmailSistem || "",
+      adminTfEvaluation: latest.adminTfEvaluation || "",
+      ipakCdakb: latest.ipakCdakb || "",
+      pabeanCompliance: latest.pabeanCompliance || "",
+      importQuotaStatus: latest.importQuotaStatus || "",
+      gbCustomerTarget: latest.gbCustomerTarget || "",
+      eximEvaluation: latest.eximEvaluation || "",
     };
-  }, [allYearlyReports, report, currentYr]);
+  }, [allYearlyReports, report]);
 
   const risks = useMemo(() => {
     const detected = [];
@@ -483,7 +495,7 @@ export default function FinancialDeck({ report, allYearlyReports = {} }) {
     }
     if (data.taxRevisi && toNum(data.taxRevisi) > 2) detected.push({ dept: "Accounting & Tax", msg: `Faktur pajak revisi (${data.taxRevisi}%) melebihi batas 2%.` });
     if (data.taxBatal && toNum(data.taxBatal) > 1) detected.push({ dept: "Accounting & Tax", msg: `Faktur pajak batal (${data.taxBatal}%) melebihi batas 1%.` });
-    if (data.monthlyReportDate && (data.monthlyReportDate.toLowerCase().includes("telat") || data.monthlyReportDate.toLowerCase().includes("belum"))) {
+    if (data.monthlyReportDate && (String(data.monthlyReportDate).toLowerCase().includes("telat") || String(data.monthlyReportDate).toLowerCase().includes("belum"))) {
       detected.push({ dept: "Finance AP", msg: "Laporan bulanan mengalami keterlambatan." });
     }
     return detected;
@@ -492,36 +504,36 @@ export default function FinancialDeck({ report, allYearlyReports = {} }) {
   const compliant = risks.length === 0;
   const badDebtTotal = data.badDebtList.reduce((acc, curr) => acc + toNum(curr.amount), 0);
 
-  /* scorecard departemen (memakai ambang yang sama dengan slide masing-masing) */
   const lateAp = String(data.monthlyReportDate).toLowerCase().includes("telat");
   const lateLap = String(data.lapKeuanganDate).toLowerCase().includes("telat");
+  
   const depts = [
     {
-      label: "Finance AR", slide: 1, icon: Receipt, color: COLOR.emerald,
+      label: "Finance AR", slide: 2, icon: Receipt, color: COLOR.emerald,
       has: hasVal(data.arIdrAch) || hasVal(data.arUsdAch) || data.badDebtList.length > 0,
       good: !(hasVal(data.arIdrAch) && toNum(data.arIdrAch) < 98) && !(hasVal(data.arUsdAch) && toNum(data.arUsdAch) < 98) && data.badDebtList.length === 0,
       metric: hasVal(data.arIdrAch) ? `IDR ${fmtPct(data.arIdrAch)}` : "",
     },
     {
-      label: "Finance AP", slide: 2, icon: FileText, color: COLOR.cyan,
+      label: "Finance AP", slide: 3, icon: FileText, color: COLOR.cyan,
       has: hasVal(data.monthlyReportDate) || hasVal(data.budgetHutangAch) || hasVal(data.claimSpaAch) || hasVal(data.sapUpdateAch),
       good: !lateAp,
       metric: hasVal(data.monthlyReportDate) ? `Lap. ${data.monthlyReportDate}` : "",
     },
     {
-      label: "Accounting & Tax", slide: 3, icon: Percent, color: COLOR.amber,
+      label: "Accounting & Tax", slide: 4, icon: Percent, color: COLOR.amber,
       has: hasVal(data.lapKeuanganDate) || hasVal(data.taxRevisi) || hasVal(data.taxBatal),
       good: !lateLap && !(hasVal(data.taxRevisi) && toNum(data.taxRevisi) > 2) && !(hasVal(data.taxBatal) && toNum(data.taxBatal) > 1),
       metric: hasVal(data.taxRevisi) || hasVal(data.taxBatal) ? `Rev ${data.taxRevisi || "-"}% · Batal ${data.taxBatal || "-"}%` : "",
     },
     {
-      label: "Admin TF", slide: 4, icon: Activity, color: COLOR.indigo,
+      label: "Admin TF", slide: 5, icon: Activity, color: COLOR.indigo,
       has: hasVal(data.tfLuarKotaAch) || hasVal(data.tfEmailSistemAch),
       good: !(hasVal(data.tfLuarKotaAch) && toNum(data.tfLuarKotaAch) < 98) && !(hasVal(data.tfEmailSistemAch) && toNum(data.tfEmailSistemAch) < 99),
       metric: hasVal(data.tfLuarKotaAch) || hasVal(data.tfEmailSistemAch) ? `${hasVal(data.tfLuarKotaAch) ? fmtPct(data.tfLuarKotaAch) : "-"} · ${hasVal(data.tfEmailSistemAch) ? fmtPct(data.tfEmailSistemAch) : "-"}` : "",
     },
     {
-      label: "Global Trade", slide: 5, icon: Globe, color: COLOR.violet,
+      label: "Global Trade", slide: 6, icon: Globe, color: COLOR.violet,
       has: hasVal(data.importQuotaStatus) || hasVal(data.ipakCdakb) || hasVal(data.pabeanCompliance) || hasVal(data.gbCustomerTarget),
       good: true, info: true,
       metric: hasVal(data.importQuotaStatus) ? String(data.importQuotaStatus) : "",
@@ -532,8 +544,8 @@ export default function FinancialDeck({ report, allYearlyReports = {} }) {
   const invB = toNum(data.totalInvEmailSistem);
   const invShare = invA + invB > 0 ? (invA / (invA + invB)) * 100 : null;
 
-  const outlookItems = toItems(data.nextYearOutlook);
-  const milestoneItems = toItems(data.keyMilestones);
+  const outlookItems = toItems(data.future.nextYearOutlook);
+  const milestoneItems = toItems(data.future.keyMilestones);
 
   return (
     <div className="relative w-full bg-[#07121D] border border-white/10 rounded-2xl shadow-2xl flex flex-col justify-between overflow-hidden font-sans text-slate-200">
@@ -546,7 +558,10 @@ export default function FinancialDeck({ report, allYearlyReports = {} }) {
           </div>
           <div>
             <div className="text-[10px] uppercase tracking-[0.2em] text-amber-400 font-black">Financial Command Center</div>
-            <div className="text-sm text-slate-300 font-medium">{report?.plant?.name || "Consolidated Finance"} · FY {currentYr}</div>
+            <div className="text-sm text-slate-300 font-medium flex items-center gap-2">
+              {report?.plant?.name || "Consolidated Finance"} 
+              <span className="text-[10px] px-2 py-0.5 rounded bg-white/10 text-slate-400 font-mono">Journey 2024-2027</span>
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-4">
@@ -576,7 +591,6 @@ export default function FinancialDeck({ report, allYearlyReports = {} }) {
               background: "radial-gradient(1100px 560px at 0% -10%, rgba(43,98,133,0.32), transparent 60%), radial-gradient(900px 500px at 100% 110%, rgba(163,196,0,0.07), transparent 60%), #0A1826",
             }}
           >
-            {/* dekorasi latar: pola titik + orb melayang */}
             <div className="absolute inset-0 pointer-events-none" style={{ backgroundImage: "radial-gradient(rgba(255,255,255,0.055) 1px, transparent 1px)", backgroundSize: "30px 30px", maskImage: "linear-gradient(180deg, rgba(0,0,0,.9), transparent 85%)", WebkitMaskImage: "linear-gradient(180deg, rgba(0,0,0,.9), transparent 85%)" }} />
             <div className="absolute w-72 h-72 rounded-full pointer-events-none floaty" style={{ left: "38%", top: "62%", background: "radial-gradient(circle, rgba(34,211,238,0.10), transparent 70%)" }} />
             <div className="absolute w-60 h-60 rounded-full pointer-events-none floaty2" style={{ left: "8%", top: "70%", background: "radial-gradient(circle, rgba(251,191,36,0.08), transparent 70%)" }} />
@@ -628,7 +642,6 @@ export default function FinancialDeck({ report, allYearlyReports = {} }) {
                   </Glass>
                 </div>
 
-                {/* Scorecard departemen (klik untuk lompat ke slide) */}
                 <div className="shrink-0">
                   <div className="text-[11px] font-black uppercase tracking-wider text-slate-400 mb-2">Scorecard Departemen · klik untuk detail</div>
                   <div className="grid grid-cols-5 gap-4">
@@ -668,7 +681,7 @@ export default function FinancialDeck({ report, allYearlyReports = {} }) {
                     </div>
                     <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-1 space-y-2.5">
                       {!data.hasData ? (
-                        <EmptyCard label={`data FY ${currentYr}`} />
+                        <EmptyCard label="data terbaru" />
                       ) : compliant ? (
                         <div className="flex items-center gap-3 p-3.5 rounded-xl border border-emerald-400/25 bg-emerald-400/10">
                           <CheckCircle2 size={22} className="text-emerald-300 shrink-0" />
@@ -697,9 +710,55 @@ export default function FinancialDeck({ report, allYearlyReports = {} }) {
               </SlideShell>
             )}
 
-            {/* SLIDE 2: FINANCE AR */}
+            {/* SLIDE 2: EVOLUSI KINERJA (STORYTELLING 2024-2026) */}
             {currentSlide === 1 && (
-              <SlideShell icon={Receipt} kicker="Finance · Piutang" title="Finance AR (Piutang)" subtitle="Penagihan, pencapaian, dan pengendalian bad debt" accent={COLOR.emerald} no="02">
+              <SlideShell icon={TrendingUp} kicker="Perjalanan Kinerja" title="Evolusi 2024 - 2026" subtitle="Perbandingan pencapaian target dan efisiensi dari tahun ke tahun" accent={COLOR.cyan} no="02">
+                <div className="flex-1 min-h-0 flex flex-col gap-8 justify-center">
+                  <Glass d={1} className="p-6">
+                    <div className="text-[13px] font-black uppercase tracking-wider text-slate-400 mb-4 flex items-center gap-2">
+                      <Target size={16} className="text-emerald-400" /> Tren Pencapaian Target (%)
+                    </div>
+                    <div className="flex items-end justify-between gap-4 h-32 px-4">
+                      {data.trend.targetAchieved.map((t, i) => {
+                        const height = Math.max(10, Number(t.val) || 0);
+                        const isGood = Number(t.val) >= 95;
+                        return (
+                          <div key={t.year} className="flex-1 flex flex-col items-center gap-2 group">
+                            <div className="text-[14px] font-black text-white mb-1">{t.val}%</div>
+                            <div 
+                              className="w-full rounded-t-lg transition-all duration-1000 ease-out relative overflow-hidden"
+                              style={{ 
+                                height: `${height}%`, 
+                                background: isGood ? `linear-gradient(to top, ${COLOR.emerald}88, ${COLOR.emerald})` : `linear-gradient(to top, ${COLOR.amber}88, ${COLOR.amber})`,
+                              }}
+                            >
+                              <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity" />
+                            </div>
+                            <div className="text-[12px] font-bold text-slate-400 mt-2">{t.label}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </Glass>
+
+                  <div className="grid grid-cols-3 gap-4">
+                    {data.trend.targetAchieved.map((item, i) => (
+                      <Glass key={item.year} d={i+2} className="p-4 flex flex-col justify-between h-32">
+                        <div>
+                          <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">{item.year}</div>
+                          <div className={`text-[14px] font-black mb-2 ${i === 0 ? 'text-blue-400' : i === 1 ? 'text-emerald-400' : 'text-purple-400'}`}>{item.label.split(' ')[1]}</div>
+                        </div>
+                        <p className="text-[12px] text-slate-300 leading-snug">{item.desc}</p>
+                      </Glass>
+                    ))}
+                  </div>
+                </div>
+              </SlideShell>
+            )}
+
+            {/* SLIDE 3: FINANCE AR */}
+            {currentSlide === 2 && (
+              <SlideShell icon={Receipt} kicker="Finance · Piutang" title="Finance AR (Piutang)" subtitle="Penagihan, pencapaian, dan pengendalian bad debt" accent={COLOR.emerald} no="03">
                 <div className="grid grid-cols-3 gap-5 shrink-0" style={{ height: 206 }}>
                   <GaugeCard d={1} label="Pencapaian Piutang IDR" value={data.arIdrAch} target="≥ 98%" targetNum={98} icon={TrendingUp} accent={COLOR.emerald} good={toNum(data.arIdrAch) >= 98} compact />
                   <GaugeCard d={2} label="Pencapaian Piutang USD" value={data.arUsdAch} target="≥ 98%" targetNum={98} icon={Globe} accent={COLOR.cyan} good={toNum(data.arUsdAch) >= 98} compact />
@@ -748,9 +807,9 @@ export default function FinancialDeck({ report, allYearlyReports = {} }) {
               </SlideShell>
             )}
 
-            {/* SLIDE 3: FINANCE AP */}
-            {currentSlide === 2 && (
-              <SlideShell icon={FileText} kicker="Finance · Hutang" title="Finance AP (Hutang)" subtitle="Kepatuhan pelaporan, budget, dan administrasi SAP" accent={COLOR.cyan} no="03">
+            {/* SLIDE 4: FINANCE AP */}
+            {currentSlide === 3 && (
+              <SlideShell icon={FileText} kicker="Finance · Hutang" title="Finance AP (Hutang)" subtitle="Kepatuhan pelaporan, budget, dan administrasi SAP" accent={COLOR.cyan} no="04">
                 <div className="flex-1 min-h-0 grid grid-cols-[1.25fr_1fr] gap-5">
                   <div className="flex flex-col gap-5 min-h-0">
                     <div className="grid grid-cols-2 grid-rows-2 gap-5 flex-1 min-h-0">
@@ -771,9 +830,9 @@ export default function FinancialDeck({ report, allYearlyReports = {} }) {
               </SlideShell>
             )}
 
-            {/* SLIDE 4: ACCOUNTING & TAX */}
-            {currentSlide === 3 && (
-              <SlideShell icon={Percent} kicker="Accounting · Perpajakan" title="Accounting & Tax" subtitle="Kepatuhan fiskal, laporan keuangan, dan audit" accent={COLOR.amber} no="04">
+            {/* SLIDE 5: ACCOUNTING & TAX */}
+            {currentSlide === 4 && (
+              <SlideShell icon={Percent} kicker="Accounting · Perpajakan" title="Accounting & Tax" subtitle="Kepatuhan fiskal, laporan keuangan, dan audit" accent={COLOR.amber} no="05">
                 <div className="grid grid-cols-3 gap-5 shrink-0" style={{ height: 196 }}>
                   <StatCard d={1} label="Laporan Keuangan" value={data.lapKeuanganDate} target="Tgl 25" icon={FileText} accent={COLOR.amber} good={!lateLap} />
                   <LimitMeter d={2} label="Faktur Pajak Revisi" value={data.taxRevisi} limit={2} icon={AlertTriangle} accent={COLOR.indigo} />
@@ -807,9 +866,9 @@ export default function FinancialDeck({ report, allYearlyReports = {} }) {
               </SlideShell>
             )}
 
-            {/* SLIDE 5: ADMIN TF */}
-            {currentSlide === 4 && (
-              <SlideShell icon={FileText} kicker="Administrasi · Tukar Faktur" title="Administrasi Tukar Faktur (TF)" subtitle="Akurasi dokumen, kecepatan proses, dan mitigasi error" accent={COLOR.indigo} no="05">
+            {/* SLIDE 6: ADMIN TF */}
+            {currentSlide === 5 && (
+              <SlideShell icon={FileText} kicker="Administrasi · Tukar Faktur" title="Administrasi Tukar Faktur (TF)" subtitle="Akurasi dokumen, kecepatan proses, dan mitigasi error" accent={COLOR.indigo} no="06">
                 <div className="flex-1 min-h-0 grid grid-cols-[1.3fr_1fr] gap-5">
                   <div className="grid grid-rows-[1fr_1fr] gap-5 min-h-0">
                     <div className="grid grid-cols-2 gap-5 min-h-0">
@@ -847,9 +906,9 @@ export default function FinancialDeck({ report, allYearlyReports = {} }) {
               </SlideShell>
             )}
 
-            {/* SLIDE 6: GLOBAL TRADE (EXIM) */}
-            {currentSlide === 5 && (
-              <SlideShell icon={Globe} kicker="Exim · Kepabeanan" title="Global Trade & Exim" subtitle="Perizinan, kuota, dan ekspansi fasilitas kepabeanan" accent={COLOR.violet} no="06">
+            {/* SLIDE 7: GLOBAL TRADE (EXIM) */}
+            {currentSlide === 6 && (
+              <SlideShell icon={Globe} kicker="Exim · Kepabeanan" title="Global Trade & Exim" subtitle="Perizinan, kuota, dan ekspansi fasilitas kepabeanan" accent={COLOR.violet} no="07">
                 <Glass d={1} className="px-8 pt-6 pb-5 shrink-0" style={{ height: 262 }}>
                   <TopAccent color={COLOR.violet} />
                   <div className="absolute left-[12.5%] right-[12.5%] h-[5px] rounded-full" style={{ top: 62, background: `linear-gradient(90deg, ${COLOR.cyan}, ${COLOR.violet}, ${COLOR.amber})`, opacity: 0.4 }} />
@@ -892,8 +951,8 @@ export default function FinancialDeck({ report, allYearlyReports = {} }) {
               </SlideShell>
             )}
 
-            {/* SLIDE 7: HORIZON 2027 */}
-            {currentSlide === 6 && (
+            {/* SLIDE 8: HORIZON 2027 */}
+            {currentSlide === 7 && (
               <div className="absolute inset-0 p-9 flex flex-col">
                 <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-amber-400 via-orange-500 to-emerald-400" />
                 <div className="absolute -right-24 -top-24 w-[480px] h-[480px] rounded-full pointer-events-none" style={{ background: "radial-gradient(circle, rgba(251,191,36,0.20), transparent 70%)" }} />
@@ -911,8 +970,24 @@ export default function FinancialDeck({ report, allYearlyReports = {} }) {
 
                 <div className="relative flex-1 min-h-0 grid grid-cols-2 gap-6">
                   {[
-                    { t: "Fokus & Target Utama Keuangan", icon: Target, c: COLOR.amber, items: outlookItems, raw: data.nextYearOutlook, empty: "Strategic Outlook 2027", tint: "rgba(251,191,36,0.10)" },
-                    { t: "Key Milestones Achieved", icon: CheckCircle2, c: COLOR.emerald, items: milestoneItems, raw: data.keyMilestones, empty: "Key Milestones", tint: "rgba(52,211,153,0.10)" },
+                    { 
+                      t: "Fokus & Target Utama 2027", 
+                      icon: Target, 
+                      c: COLOR.amber, 
+                      items: outlookItems, 
+                      raw: data.future.nextYearOutlook, 
+                      empty: "Strategic Outlook 2027", 
+                      tint: "rgba(251,191,36,0.10)" 
+                    },
+                    { 
+                      t: "Key Milestones 2027", 
+                      icon: CheckCircle2, 
+                      c: COLOR.emerald, 
+                      items: milestoneItems, 
+                      raw: data.future.keyMilestones, 
+                      empty: "Key Milestones 2027", 
+                      tint: "rgba(52,211,153,0.10)" 
+                    },
                   ].map((col, ci) => (
                     <Glass key={col.t} d={ci + 1} className="p-7 flex flex-col min-h-0" style={{ background: `linear-gradient(160deg, ${col.tint}, rgba(255,255,255,0.03))` }}>
                       <div className="flex items-center gap-3 mb-4 shrink-0">
