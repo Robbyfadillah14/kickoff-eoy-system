@@ -376,7 +376,7 @@ export function buildSalesSlides(data, { mode = "OMZET", plantName = "" } = {}) 
     </div>
   );
 
-  const rowBox = { display: "grid", gridTemplateColumns: "230px 1fr 1fr 1fr", gap: 12, ...card, padding: 12, alignItems: "stretch", flex: "1 1 0", minHeight: 0, overflow: "hidden" };
+  const rowBox = { display: "grid", gridTemplateColumns: "230px 1fr 1fr 1fr", gap: 12, ...card, padding: 12, alignItems: "stretch", flex: "1 1 0", minHeight: 0, maxHeight: 230, overflow: "hidden" };
   const list = { flex: 1, minHeight: 0, display: "flex", flexDirection: "column", gap: 12 };
 
   const team = (
@@ -434,7 +434,7 @@ export function buildSalesSlides(data, { mode = "OMZET", plantName = "" } = {}) 
     <div style={{ display: "flex", flexDirection: "column", gap: 12, height: "100%" }}>
       <SlideHeader icon={<Icon name="box" size={22} color={LIME} />} title="Top 3 Produk per Sales" subtitle={spYear ? `Tiga produk andalan tiap personel · data ${spYear.yr} · ${perSales.length} personel` : "Belum ada data sales"} />
       {perSales.length ? (
-        <div style={{ flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gridAutoRows: "1fr", gap: 12 }}>
+        <div style={{ flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: perSales.length === 1 ? "minmax(0, 640px)" : `repeat(${Math.min(Math.max(perSales.length, 1), 3)}, 1fr)`, justifyContent: perSales.length === 1 ? "center" : "stretch", gridAutoRows: perSales.length <= 3 ? "minmax(0, 330px)" : "1fr", gap: 12, alignContent: perSales.length <= 3 ? "start" : "stretch" }}>
           {perSales.slice(0, 6).map((sp, si) => {
             const top = sp.prods.slice(0, MIN_P), mx = Math.max(...top.flatMap((p) => [p.jalan, p.lalu]), 1);
             const ok = sp.ach >= 100;
