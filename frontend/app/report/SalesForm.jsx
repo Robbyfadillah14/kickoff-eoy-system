@@ -1,7 +1,18 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { parseExcelFile, applyExcelImport } from "../../lib/reportExcel";
 import { FileSpreadsheet, Upload, CheckCircle2, Edit3, Eye } from "lucide-react";
+
+// Setiap sales / brand wajib punya minimal 3 top produk (tampil di presentasi: "Top 3 Produk per Sales")
+const MIN_PRODUCTS = 3;
+let uid = 0;
+const newId = () => Date.now() * 1000 + (uid++ % 1000);
+const blankProduct = () => ({ id: newId(), productName: "", totalQty: "", category: "", laluVal: "", jalanVal: "" });
+const withMinProducts = (sp) => {
+  const list = Array.isArray(sp.topProducts) ? sp.topProducts : [];
+  return list.length >= MIN_PRODUCTS ? sp : { ...sp, topProducts: [...list, ...Array.from({ length: MIN_PRODUCTS - list.length }, blankProduct)] };
+};
+const filledCount = (sp) => (sp.topProducts || []).filter((p) => String(p?.productName || "").trim()).length;
 
 export default function SalesForm({ form, setForm }) {
   const [fileName, setFileName] = useState("");
@@ -13,6 +24,14 @@ export default function SalesForm({ form, setForm }) {
   const rows = form.salesPerformances || [];
   const currentYear = Number(form.year || 2024);
   const prevYear = currentYear - 1;
+
+  // baris lama / hasil upload Excel yang produknya < 3 otomatis dilengkapi baris kosong (belum terisi)
+  useEffect(() => {
+    if (rows.some((sp) => (sp.topProducts || []).length < MIN_PRODUCTS)) {
+      setForm({ ...form, salesPerformances: rows.map(withMinProducts) });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows]);
 
   // Handler Upload & Parse File Excel Fleksibel
   const handleExcelUpload = async (e) => {
@@ -245,9 +264,7 @@ export default function SalesForm({ form, setForm }) {
                         actualVal: "", 
                         targetProfit: "", 
                         note: "",
-                        topProducts: [
-                          { id: Date.now() + 1, productName: "", totalQty: "", category: "" }
-                        ]
+                        topProducts: Array.from({ length: MIN_PRODUCTS }, blankProduct)
                       }
                     ]
                   });
@@ -346,21 +363,17 @@ export default function SalesForm({ form, setForm }) {
                   <div className="bg-bg/60 border border-emerald-500/30 rounded-xl p-3 space-y-3 mt-3">
                     <div className="flex justify-between items-center">
                       <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider">
-                        Top Produk / Item Group (Kimberly, Alpha, Haikou, Loctite, Panasonic, dll)
+                        Top {MIN_PRODUCTS} Produk / Item Group (Kimberly, Alpha, Haikou, Loctite, Panasonic, dll)
+                      </span>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${filledCount(sp) >= MIN_PRODUCTS ? "text-emerald-300 border-emerald-500/40 bg-emerald-500/10" : "text-amber-300 border-amber-500/40 bg-amber-500/10"}`}>
+                        {filledCount(sp)}/{MIN_PRODUCTS} terisi · minimal {MIN_PRODUCTS}
                       </span>
                       <button
                         type="button"
                         onClick={() => {
                           const updated = [...rows];
                           if (!updated[idx].topProducts) updated[idx].topProducts = [];
-                          updated[idx].topProducts.push({
-                            id: Date.now(),
-                            productName: "",
-                            totalQty: "",
-                            category: "",
-                            laluVal: "",
-                            jalanVal: ""
-                          });
+                          updated[idx].topProducts.push(blankProduct());
                           setForm({ ...form, salesPerformances: updated });
                         }}
                         className="px-2 py-1 bg-emerald-500/20 text-emerald-400 text-[10px] font-semibold rounded hover:bg-emerald-500/30 transition cursor-pointer"
@@ -374,7 +387,7 @@ export default function SalesForm({ form, setForm }) {
                         <div key={prod.id || pIdx} className="bg-bg2 border border-line rounded-lg p-2.5 space-y-2">
                           <div className="flex justify-between items-center">
                             <span className="text-[10px] font-mono text-slate-400">Produk / Item Group #{pIdx + 1}</span>
-                            {(sp.topProducts || []).length > 1 && (
+                            {(sp.topProducts || []).length > MIN_PRODUCTS && (
                               <button
                                 type="button"
                                 onClick={() => {

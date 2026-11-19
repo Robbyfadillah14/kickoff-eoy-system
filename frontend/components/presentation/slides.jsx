@@ -1,189 +1,326 @@
-"use client";
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
-import { BRAND, THEMES, themeVars } from "../../lib/presentation/theme.js";
+import React from "react";
+import { BRAND, phaseColor, statusOf } from "../../lib/presentation/theme.js";
 
-export const STAGE_W = 1360;
-export const STAGE_H = 720;
-
-const Svg = ({ d, size = 16 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>
+export const Glass = ({ children, style, accent }) => (
+  <div className="dk-glass" style={{
+    position: "relative", overflow: "hidden", borderRadius: 20, padding: 24, boxSizing: "border-box",
+    background: accent ? `linear-gradient(160deg, ${accent}1f, var(--dk-card-b, rgba(255,255,255,0.025)) 58%)` : "linear-gradient(160deg, var(--dk-card-a, rgba(255,255,255,0.075)), var(--dk-card-b, rgba(255,255,255,0.025)) 60%)",
+    border: `1px solid ${accent ? accent + "4d" : BRAND.line}`,
+    boxShadow: "var(--dk-shadow, 0 18px 40px -22px rgba(0,0,0,.8))",
+    ...style,
+  }}>
+    {accent && <span aria-hidden style={{ position: "absolute", left: 0, top: 0, right: 0, height: 4, background: `linear-gradient(90deg, ${accent}, ${accent}00 85%)` }} />}
+    {children}
+  </div>
 );
-const ICON = {
-  prev: "M15 18l-6-6 6-6",
-  next: "M9 18l6-6-6-6",
-  play: "M6 4l14 8-14 8z",
-  pause: "M8 5v14M16 5v14",
-  full: "M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5",
-  down: "M12 3v12M7 10l5 5 5-5M5 21h14",
-  sun: "M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10z M12 1v2 M12 21v2 M4.2 4.2l1.4 1.4 M18.4 18.4l1.4 1.4 M1 12h2 M21 12h2 M4.2 19.8l1.4-1.4 M18.4 5.6l1.4-1.4",
-  moon: "M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z",
+
+export const Eyebrow = ({ children, color = BRAND.cyan }) => (
+  <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, letterSpacing: 3, fontWeight: 800, color, textTransform: "uppercase" }}>
+    <span aria-hidden style={{ width: 22, height: 3, borderRadius: 99, background: color, flex: "none" }} />{children}
+  </div>
+);
+
+export const Title = ({ children, size = 44 }) => (
+  <h2 style={{ margin: "10px 0 0", fontSize: size, lineHeight: 1.08, fontWeight: 850, letterSpacing: -1 }}>{children}</h2>
+);
+
+/** kepala slide: eyebrow + judul (+ kalimat kunci `sub` agar audiens langsung tahu pesan slide) */
+export const SlideHead = ({ eyebrow, title, color, right, sub }) => (
+  <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 26, gap: 24 }}>
+    <div style={{ minWidth: 0 }}>
+      <Eyebrow color={color}>{eyebrow}</Eyebrow><Title>{title}</Title>
+      {sub && <div style={{ marginTop: 8, fontSize: 21, color: BRAND.muted, lineHeight: 1.35, maxWidth: 940 }}>{sub}</div>}
+    </div>
+    {right}
+  </div>
+);
+
+export const Empty = ({ children = "Belum diisi", hint }) => (
+  <div style={{ border: `1.5px dashed ${BRAND.muted}66`, borderRadius: 16, padding: "22px 24px", color: BRAND.muted, fontSize: 17, display: "flex", gap: 14, alignItems: "flex-start", background: BRAND.panel }}>
+    <span aria-hidden style={{ width: 30, height: 30, borderRadius: 99, border: `1.5px solid ${BRAND.muted}88`, display: "grid", placeItems: "center", fontSize: 15, flex: "none" }}>…</span>
+    <div>{children}{hint && <div style={{ fontSize: 14, marginTop: 6, lineHeight: 1.45, opacity: 0.85 }}>{hint}</div>}</div>
+  </div>
+);
+
+export const Pill = ({ pct }) => {
+  const s = statusOf(pct);
+  return <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 15, fontWeight: 800, color: s.color, background: s.color + "1f", border: `1px solid ${s.color}66`, borderRadius: 99, padding: "7px 16px", whiteSpace: "nowrap" }}><i aria-hidden style={{ width: 8, height: 8, borderRadius: 99, background: s.color }} />{s.label}</span>;
 };
 
-/**
- * Cangkang presentasi tunggal untuk semua deck.
- * - Panggung tetap 1360x720 lalu di-scale (min(w/h)) -> tampilan sama di layar manapun, tidak ada scroll.
- * - SATU-satunya pemilik keyboard (←/→/Space/PgUp/PgDn/Home/End, F fullscreen, P autoplay).
- *   Hanya aktif saat `active` true, jadi banyak deck di satu halaman tidak saling rebut tombol.
- *
- * slides: [{ id, label, node }]
- */
-const stageBg = (accent, theme = "light") => `radial-gradient(circle at 1px 1px, var(--dk-dot) 1px, transparent 0) 0 0/28px 28px, radial-gradient(1000px 560px at 88% -15%, ${accent}${theme === "dark" ? "33" : "26"}, transparent 62%), radial-gradient(800px 480px at -8% 112%, ${BRAND.emerald}${theme === "dark" ? "22" : "1c"}, transparent 62%), var(--dk-bg)`;
-
-/** Footer panggung (sama untuk layar & cetak) */
-const StageFooter = ({ index, total, accent = BRAND.cyan, bare = false }) => bare ? null : (
-  <>
-    <div aria-hidden style={{ position: "absolute", left: 0, top: 0, right: 0, height: 4, background: `linear-gradient(90deg, ${BRAND.cyan}, ${BRAND.emerald} 40%, #a78bfa 70%, ${BRAND.warn})` }} />
-    {index != null && total > 1 && <div aria-hidden style={{ position: "absolute", left: 0, top: 4, height: 2, width: `${((index + 1) / total) * 100}%`, background: accent, opacity: 0.9, transition: "width .4s" }} />}
-    <div style={{ position: "absolute", left: 56, right: 56, bottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, letterSpacing: 3, color: BRAND.muted }}>
-      <span style={{ fontWeight: 700 }}>{BRAND.name.toUpperCase()}</span>
-      <span>{index != null ? <b style={{ color: BRAND.text, fontSize: 14, letterSpacing: 1 }}>{String(index + 1).padStart(2, "0")}<span style={{ color: BRAND.muted, fontWeight: 400 }}> / {String(total).padStart(2, "0")}</span></b> : BRAND.tagline}</span>
-    </div>
-  </>
+/* ───────── ikon & komponen infografik ───────── */
+const ICONS = {
+  target: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10z M12 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2z",
+  trendUp: "M3 17l6-6 4 4 8-8 M15 7h6v6",
+  trendDown: "M3 7l6 6 4-4 8 8 M15 17h6v-6",
+  check: "M20 6L9 17l-5-5",
+  alert: "M12 9v4 M12 17h.01 M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z",
+  users: "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2 M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z M23 21v-2a4 4 0 0 0-3-3.9 M16 3.1a4 4 0 0 1 0 7.8",
+  box: "M21 8l-9-5-9 5v8l9 5 9-5z M3.3 7L12 12l8.7-5 M12 22V12",
+  flag: "M4 22V4 M4 4h13l-2 4 2 4H4",
+  star: "M12 2l3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z",
+  bolt: "M13 2L3 14h8l-1 8 10-12h-8z",
+  calendar: "M3 5h18v16H3z M3 10h18 M8 3v4 M16 3v4",
+  bulb: "M9 18h6 M10 22h4 M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.3h6c0-1 .4-1.8 1-2.3A7 7 0 0 0 12 2z",
+  rocket: "M12 15l-3-3a22 22 0 0 1 2-4 13 13 0 0 1 11-6c0 3-1 8-6 11a22 22 0 0 1-4 2z M9 12H4s.6-3 2-4c1.6-1.1 5 0 5 0 M12 15v5s3-.6 4-2c1.1-1.6 0-5 0-5",
+  chart: "M3 3v18h18 M7 14l4-4 3 3 5-6",
+  layers: "M12 2l10 5-10 5L2 7z M2 17l10 5 10-5 M2 12l10 5 10-5",
+  file: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6 M8 13h8 M8 17h8",
+};
+export const Icon = ({ name, size = 22, color = "currentColor", stroke = 2 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={stroke} strokeLinecap="round" strokeLinejoin="round" aria-hidden style={{ flex: "none" }}><path d={ICONS[name] || ICONS.chart} /></svg>
 );
 
-/**
- * Unduh PDF: semua slide dirender berurutan di luar layar (portal ke <body>), 1 slide = 1 halaman 1360x720,
- * lalu window.print() -> pilih "Simpan sebagai PDF". Tampilan sama persis dengan layar (bukan tangkapan layar).
- * fileName dipakai sebagai nama file (browser memakai document.title).
- */
-export default function DeckShell({ title, subtitle, slides, accent = BRAND.cyan, active = true, autoplayMs = 9000, onClose, fileName, printable = true, lockTheme = null, bare = false, stageBgOverride = null, defaultTheme = "light" }) {
-  const [printing, setPrinting] = useState(false);
-  // tema deck: terang (default, nyaman dibaca di ruang rapat & saat dicetak) atau gelap; pilihan diingat per browser
-  const [theme0, setTheme] = useState(defaultTheme);
-  const theme = lockTheme || theme0;
-  useEffect(() => { if (lockTheme) return; try { const t = localStorage.getItem("dk-theme"); if (t === "dark" || t === "light") setTheme(t); } catch {} }, []);
-  const toggleTheme = useCallback(() => setTheme((t) => { const n = t === "dark" ? "light" : "dark"; try { localStorage.setItem("dk-theme", n); } catch {} return n; }), []);
-  const vars = themeVars(theme);
-  const printDeck = useCallback(() => {
-    const prev = document.title;
-    const done = () => { document.title = prev; setPrinting(false); window.removeEventListener("afterprint", done); };
-    document.title = fileName || title || prev;
-    setPrinting(true);
-    window.addEventListener("afterprint", done);
-    // beri waktu React merender semua halaman cetak sebelum dialog cetak dibuka
-    setTimeout(() => { try { window.print(); } catch { done(); } }, 350);
-  }, [fileName, title]);
+/** gelembung ikon berwarna */
+export const IconBubble = ({ name, color = BRAND.cyan, size = 46 }) => (
+  <span aria-hidden style={{ width: size, height: size, borderRadius: size * 0.32, background: `${color}22`, border: `1px solid ${color}44`, display: "inline-grid", placeItems: "center", flex: "none" }}>
+    <Icon name={name} size={size * 0.5} color={color} />
+  </span>
+);
 
-  const [i, setI] = useState(0);
-  const [playing, setPlaying] = useState(false);
-  const [scale, setScale] = useState(1);
-  const boxRef = useRef(null);
-  const wrapRef = useRef(null);
-  const n = slides.length;
-
-  const go = useCallback((to) => setI((p) => Math.max(0, Math.min(n - 1, typeof to === "function" ? to(p) : to))), [n]);
-  const toggleFull = useCallback(() => {
-    const el = wrapRef.current; if (!el) return;
-    if (document.fullscreenElement) document.exitFullscreen?.(); else el.requestFullscreen?.();
-  }, []);
-
-  useEffect(() => { if (i > n - 1) setI(Math.max(0, n - 1)); }, [n, i]);
-
-  useEffect(() => {
-    const el = boxRef.current; if (!el) return;
-    const fit = () => { const r = el.getBoundingClientRect(); if (r.width && r.height) setScale(Math.min(r.width / STAGE_W, r.height / STAGE_H)); };
-    fit();
-    const ro = new ResizeObserver(fit); ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-
-  useEffect(() => {
-    if (!active) return;
-    const onKey = (e) => {
-      const t = e.target; if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
-      if (e.metaKey || e.ctrlKey || e.altKey) return;
-      const k = e.key;
-      if (k === "ArrowRight" || k === "PageDown" || k === " ") { e.preventDefault(); go((p) => p + 1); }
-      else if (k === "ArrowLeft" || k === "PageUp") { e.preventDefault(); go((p) => p - 1); }
-      else if (k === "Home") go(0);
-      else if (k === "End") go(n - 1);
-      else if (k === "f" || k === "F") toggleFull();
-      else if (k === "p" || k === "P") setPlaying((v) => !v);
-      else if (k === "Escape" && onClose && !document.fullscreenElement) onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [active, go, n, toggleFull, onClose]);
-
-  useEffect(() => {
-    if (!playing || !active) return;
-    const t = setInterval(() => setI((p) => { if (p >= n - 1) { setPlaying(false); return p; } return p + 1; }), autoplayMs);
-    return () => clearInterval(t);
-  }, [playing, active, n, autoplayMs]);
-
-  const cur = slides[i];
-  const btn = { display: "inline-flex", alignItems: "center", justifyContent: "center", width: 34, height: 34, borderRadius: 10, border: `1px solid ${BRAND.line}`, background: BRAND.panel, color: BRAND.text, cursor: "pointer" };
-
+/** garis tren mini; nilai null dilewati */
+export function Sparkline({ values, color = BRAND.cyan, w = 190, h = 58, target }) {
+  const pts = values.map((v, k) => (v == null ? null : [k, v])).filter(Boolean);
+  if (pts.length < 2) return null;
+  const hi = Math.max(...pts.map((p) => p[1]), target ?? 0) * 1.1 || 1;
+  const lo = Math.min(...pts.map((p) => p[1]), target ?? Infinity, 0);
+  const X = (k) => 6 + (k / Math.max(1, values.length - 1)) * (w - 12);
+  const Y = (v) => h - 8 - ((v - lo) / (hi - lo || 1)) * (h - 16);
+  const line = pts.map((p) => `${X(p[0])},${Y(p[1])}`).join(" ");
+  const gid = `sp${String(color).replace(/\W/g, "")}${w}`;
+  const last = pts[pts.length - 1];
   return (
-    <div ref={wrapRef} style={{ ...vars, background: BRAND.bg, color: BRAND.text, display: "flex", flexDirection: "column", width: "100%", height: "100%", minHeight: 360, fontFamily: "ui-sans-serif, system-ui, 'Segoe UI', sans-serif" }}>
-      <style>{`
-        @keyframes dk-rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
-        @keyframes dk-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
-        .dk-slide{animation:dk-rise .45s cubic-bezier(.2,.7,.2,1) both}
-        .dk-rise{animation:dk-rise .5s cubic-bezier(.2,.7,.2,1) both}
-        .dk-glass:not([style*="grid"]){display:flex;flex-direction:column;justify-content:center}
-        .dk-body>div:not(.dk-cover){height:100%;display:flex;flex-direction:column}
-        .dk-body>div:not(.dk-cover)>:last-child:not(:first-child){flex:1 1 0;min-height:0}
-        @media (prefers-reduced-motion:reduce){.dk-slide,.dk-rise{animation:none}}
-      `}</style>
+    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} aria-hidden>
+      <defs><linearGradient id={gid} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={color} stopOpacity=".35" /><stop offset="1" stopColor={color} stopOpacity="0" /></linearGradient></defs>
+      <polygon points={`${X(pts[0][0])},${h - 4} ${line} ${X(last[0])},${h - 4}`} fill={`url(#${gid})`} />
+      <polyline points={line} fill="none" stroke={color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+      {pts.map((p) => <circle key={p[0]} cx={X(p[0])} cy={Y(p[1])} r={p === last ? 5 : 3.5} fill={p === last ? color : BRAND.bg} stroke={color} strokeWidth="2.5" />)}
+    </svg>
+  );
+}
 
-      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 16px", borderBottom: `1px solid ${BRAND.line}` }}>
-        <span style={{ width: 8, height: 8, borderRadius: 99, background: accent }} />
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{title}</div>
-          {subtitle && <div style={{ fontSize: 11, color: BRAND.muted }}>{subtitle}</div>}
-        </div>
-        <div style={{ marginLeft: "auto", fontSize: 11, color: BRAND.muted, fontVariantNumeric: "tabular-nums" }}>{cur?.label} · {i + 1}/{n}</div>
-        <button aria-label={playing ? "Jeda" : "Putar otomatis"} onClick={() => setPlaying((v) => !v)} style={btn}><Svg d={playing ? ICON.pause : ICON.play} /></button>
-        {printable && <button aria-label="Unduh PDF" title="Unduh PDF (simpan sebagai PDF di dialog cetak)" onClick={printDeck} disabled={printing} style={{ ...btn, width: "auto", padding: "0 12px", gap: 6, fontSize: 12, fontWeight: 700, opacity: printing ? 0.5 : 1 }}><Svg d={ICON.down} size={14} />PDF</button>}
-        {!lockTheme && <button aria-label={theme === "dark" ? "Tema terang" : "Tema gelap"} title={theme === "dark" ? "Ganti ke tema terang" : "Ganti ke tema gelap"} onClick={toggleTheme} style={btn}><Svg d={theme === "dark" ? ICON.sun : ICON.moon} /></button>}
-        <button aria-label="Layar penuh" onClick={toggleFull} style={btn}><Svg d={ICON.full} /></button>
+/** kartu angka utama: ikon + label + nilai besar + keterangan (+ chip perubahan & sparkline) */
+export function StatTile({ icon = "chart", label, value, sub, color = BRAND.cyan, chip, chipColor, spark, style }) {
+  return (
+    <Glass style={{ gap: 0, padding: "22px 24px", ...style }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+        <IconBubble name={icon} color={color} />
+        <div style={{ fontSize: 14, letterSpacing: 2.5, fontWeight: 800, color: BRAND.muted, textTransform: "uppercase", lineHeight: 1.25 }}>{label}</div>
       </div>
-
-      <div ref={boxRef} style={{ position: "relative", flex: 1, minHeight: 0, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div style={{ width: STAGE_W, height: STAGE_H, flex: "none", transform: `scale(${scale})`, transformOrigin: "center center", position: "relative",
-          background: stageBgOverride || stageBg(accent, theme) }}>
-          <div key={cur?.id ?? i} className="dk-slide dk-body" style={{ position: "absolute", inset: 0, padding: bare ? "20px 20px 20px" : "48px 56px 52px" }}>{cur?.node}</div>
-          <StageFooter index={i} total={n} accent={accent} bare={bare} />
-        </div>
+      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 12, marginTop: 18 }}>
+        <div style={{ fontSize: fitSize(value, 72, 44), fontWeight: 850, letterSpacing: -2.5, lineHeight: 1, whiteSpace: "nowrap" }}>{value}</div>
+        {spark}
       </div>
-
-      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 16px", borderTop: `1px solid ${BRAND.line}` }}>
-        <button aria-label="Sebelumnya" disabled={i === 0} onClick={() => go(i - 1)} style={{ ...btn, opacity: i === 0 ? 0.35 : 1 }}><Svg d={ICON.prev} /></button>
-        <div style={{ flex: 1, display: "flex", gap: 6, justifyContent: "center" }}>
-          {slides.map((s, k) => (
-            <button key={s.id} title={s.label} aria-label={s.label} onClick={() => go(k)}
-              style={{ height: 6, width: k === i ? 28 : 12, borderRadius: 99, border: 0, cursor: "pointer", background: k === i ? accent : k < i ? `${accent}66` : BRAND.track, transition: "all .25s" }} />
-          ))}
-        </div>
-        <button aria-label="Berikutnya" disabled={i === n - 1} onClick={() => go(i + 1)} style={{ ...btn, background: accent, color: "var(--dk-on-accent, #04141a)", border: 0, opacity: i === n - 1 ? 0.35 : 1 }}><Svg d={ICON.next} /></button>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 14, flexWrap: "wrap" }}>
+        {chip && <span style={{ fontSize: 15, fontWeight: 800, color: chipColor || color, background: `${chipColor || color}1f`, borderRadius: 99, padding: "4px 12px", whiteSpace: "nowrap" }}>{chip}</span>}
+        {sub && <span style={{ fontSize: 16, color: BRAND.muted, lineHeight: 1.35 }}>{sub}</span>}
       </div>
+    </Glass>
+  );
+}
 
-      {printing && typeof document !== "undefined" && createPortal(
-        <div className="dk-print-root" style={vars}>
-          <style>{`
-            .dk-print-root{position:fixed;left:-99999px;top:0}
-            @page{size:${STAGE_W}px ${STAGE_H}px;margin:0}
-            @media print{
-              html,body{margin:0!important;padding:0!important;background:${THEMES[theme].bg}!important}
-              body>*:not(.dk-print-root){display:none!important}
-              .dk-print-root{position:static!important;left:auto!important}
-              .dk-print-page{width:${STAGE_W}px;height:${STAGE_H}px;position:relative;overflow:hidden;break-after:page;page-break-after:always;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-              .dk-print-page:last-child{break-after:auto;page-break-after:auto}
-              .dk-print-page *{animation:none!important}
-              .dk-glass:not([style*="grid"]){display:flex;flex-direction:column;justify-content:center}
-              .dk-body>div:not(.dk-cover){height:100%;display:flex;flex-direction:column}
-              .dk-body>div:not(.dk-cover)>:last-child:not(:first-child){flex:1 1 0;min-height:0}
-            }
-          `}</style>
-          {slides.map((sl, k) => (
-            <div key={sl.id} className="dk-print-page" style={{ background: stageBgOverride || stageBg(accent, theme), color: BRAND.text, fontFamily: "ui-sans-serif, system-ui, 'Segoe UI', sans-serif" }}>
-              <div className="dk-body" style={{ position: "absolute", inset: 0, padding: bare ? "20px 20px 20px" : "48px 56px 52px" }}>{sl.node}</div>
-              <StageFooter index={k} total={slides.length} accent={accent} bare={bare} />
-            </div>
-          ))}
-        </div>, document.body)}
+/** kalimat kunci dari data — satu pesan per slide */
+export const Insight = ({ children, color = BRAND.cyan, icon = "bulb", label = "Insight" }) => (
+  <div style={{ display: "flex", alignItems: "center", gap: 18, padding: "16px 24px", borderRadius: 18, background: `${color}14`, border: `1px solid ${color}40`, borderLeft: `6px solid ${color}` }}>
+    <IconBubble name={icon} color={color} size={44} />
+    <div>
+      <div style={{ fontSize: 12, letterSpacing: 3, fontWeight: 800, color, textTransform: "uppercase" }}>{label}</div>
+      <div style={{ fontSize: 22, fontWeight: 650, lineHeight: 1.35, marginTop: 2 }}>{children}</div>
+    </div>
+  </div>
+);
+
+/** Slide penutup: apa yang berhasil, apa yang perlu dijaga, apa fokus berikutnya */
+export function ClosingSlide({ accent = BRAND.cyan, title = "Terima kasih", subtitle, wins = [], watch = [], next = [], winsLabel = "Capaian terbaik", winsEmpty, watchEmpty }) {
+  const cols = [
+    { k: winsLabel, icon: "star", color: BRAND.emerald, items: wins, empty: winsEmpty || "Belum ada indikator yang menonjol." },
+    { k: "Perlu dijaga", icon: "alert", color: BRAND.warn, items: watch, empty: watchEmpty || "Tidak ada indikator di bawah target." },
+    { k: "Fokus 2027", icon: "rocket", color: phaseColor("Future"), items: next, empty: "Belum ada rencana 2027 yang diisi." },
+  ];
+  return (
+    <div>
+      <SlideHead eyebrow="Penutup" title={title} color={accent} sub={subtitle} />
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 20 }}>
+        {cols.map((c) => (
+          <Glass key={c.k} accent={c.color} style={{ justifyContent: "flex-start", gap: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}><IconBubble name={c.icon} color={c.color} /><div style={{ fontSize: 24, fontWeight: 850 }}>{c.k}</div></div>
+            <ul style={{ margin: "20px 0 0", padding: 0, listStyle: "none", display: "grid", gap: 20, fontSize: 23, lineHeight: 1.4 }}>
+              {c.items.length ? c.items.slice(0, 3).map((t, k) => (
+                <li key={k} style={{ display: "flex", gap: 12 }}><span aria-hidden style={{ width: 10, height: 10, borderRadius: 99, background: c.color, flex: "none", marginTop: 13 }} /><span>{t}</span></li>))
+                : <li style={{ color: BRAND.muted, fontSize: 18 }}>{c.empty}</li>}
+            </ul>
+          </Glass>))}
+      </div>
+    </div>
+  );
+}
+
+/** teks persen yang aman untuk layout: nilai sangat besar ditulis "999%+" (nilai asli tetap di aria-label / tooltip) */
+export const pctText = (v, d = 1) => (v == null ? "—" : v >= 1000 ? "999%+" : `${v.toFixed(d)}%`);
+/** ukuran font menyesuaikan panjang teks agar tidak terpotong/membungkus */
+export const fitSize = (text, big = 72, min = 40) => { const n = String(text).length; return n <= 6 ? big : n <= 8 ? Math.round(big * 0.78) : n <= 10 ? Math.round(big * 0.6) : min; };
+
+export function ArcGauge({ pct, size = 190, color }) {
+  const v = Math.max(0, Math.min(130, pct ?? 0));
+  const s = statusOf(pct); const c = color || s.color;
+  const sw = Math.max(14, size / 14);
+  const r = size / 2 - sw, circ = Math.PI * 2 * r * 0.75;
+  const fill = circ * Math.min(1, v / 100);
+  const gid = `g${Math.round(size)}${String(c).replace("#", "")}`;
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label={pct == null ? "Belum ada data" : `${pct.toFixed(1)} persen`} style={{ overflow: "visible" }}>
+      <defs>
+        <linearGradient id={gid} x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor={c} /><stop offset="1" stopColor={c} stopOpacity=".55" /></linearGradient>
+        <filter id={gid + "f"} x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="7" /></filter>
+      </defs>
+      <g transform={`rotate(135 ${size / 2} ${size / 2})`}>
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" style={{ stroke: BRAND.track }} strokeWidth={sw} strokeLinecap="round" strokeDasharray={`${circ} 999`} />
+        {pct != null && <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={c} strokeWidth={sw} strokeLinecap="round" strokeDasharray={`${fill} 999`} opacity=".45" filter={`url(#${gid}f)`} />}
+        {pct != null && <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={`url(#${gid})`} strokeWidth={sw} strokeLinecap="round" strokeDasharray={`${fill} 999`} />}
+      </g>
+      <text x="50%" y="53%" textAnchor="middle" style={{ fill: BRAND.text }} fontSize={pctText(pct).length > 6 ? size / 6.6 : pctText(pct).length > 5 ? size / 5.6 : size / 4.6} fontWeight="850" letterSpacing="-1">{pctText(pct)}</text>
+      <text x="50%" y="68%" textAnchor="middle" style={{ fill: BRAND.muted }} fontSize={Math.max(13, size / 15)} letterSpacing="3">CAPAIAN</text>
+    </svg>
+  );
+}
+
+/** bar per tahun; tahun tanpa data tampil sebagai batang kosong bergaris putus (bukan 0) */
+export function YearBars({ rows, target = 100, height = 430 }) {
+  const max = Math.min(200, Math.max(110, ...rows.map((r) => r.value ?? 0))); // batang dipotong di 200% agar tidak menggepengkan tahun lain
+  const W = 1000, bw = 150, gap = (W - bw * rows.length) / (rows.length + 1), base = height - 56;
+  const y = (v) => base - (Math.min(v, max) / max) * (base - 52); // sisakan ruang di atas untuk label nilai
+  return (
+    <svg width={W} height={height} viewBox={`0 0 ${W} ${height}`} style={{ maxWidth: "100%" }}>
+      <defs>
+        {rows.map((r) => { const col = phaseColor(r.phase); return (
+          <linearGradient key={r.year} id={`yb${r.year}`} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={col} /><stop offset="1" stopColor={col} stopOpacity=".35" /></linearGradient>); })}
+      </defs>
+      <line x1="0" x2={W} y1={base} y2={base} style={{ stroke: BRAND.line }} strokeWidth="2" />
+      <line x1="0" x2={W} y1={y(target)} y2={y(target)} style={{ stroke: BRAND.muted }} strokeDasharray="4 6" opacity=".8" />
+      <text x={W} y={y(target) - 8} textAnchor="end" style={{ fill: BRAND.muted }} fontSize="14" letterSpacing="1">TARGET {target}%</text>
+      {rows.map((r, k) => {
+        const x = gap + k * (bw + gap), col = phaseColor(r.phase);
+        return (
+          <g key={r.year}>
+            {r.value == null
+              ? <rect x={x} y={y(target * 0.35)} width={bw} height={base - y(target * 0.35)} rx="14" style={{ fill: BRAND.panel, stroke: BRAND.muted }} strokeOpacity=".5" strokeWidth="1.5" strokeDasharray="6 6" />
+              : <rect x={x} y={y(r.value)} width={bw} height={Math.max(4, base - y(r.value))} rx="14" fill={`url(#yb${r.year})`} stroke={col} strokeWidth="1.5" />}
+            <text x={x + bw / 2} y={r.value == null ? base - 14 : y(r.value) - 12} textAnchor="middle" style={{ fill: r.value == null ? BRAND.muted : BRAND.text }} fontSize={r.value == null ? 22 : 30} fontWeight="850">{r.value == null ? "belum ada data" : pctText(r.value)}</text>
+            <text x={x + bw / 2} y={height - 26} textAnchor="middle" style={{ fill: BRAND.text }} fontSize="24" fontWeight="800">{r.year}</text>
+            <text x={x + bw / 2} y={height - 6} textAnchor="middle" fill={col} fontSize="13" fontWeight="700" letterSpacing="3">{String(r.phase || "").toUpperCase()}</text>
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+export function CoverSlide({ eyebrow, title, subtitle, meta = [], accent = BRAND.cyan }) {
+  const phases = [["2024", "Run", phaseColor("Run")], ["2025", "Grow", phaseColor("Grow")], ["2026", "Transform", phaseColor("Transform")], ["2027", "Future", phaseColor("Future")]];
+  return (
+    <div className="dk-cover" style={{ height: "100%", position: "relative", display: "flex", flexDirection: "column", justifyContent: "center", gap: 22 }}>
+      <div aria-hidden style={{ position: "absolute", right: -30, top: 10, fontSize: 330, fontWeight: 900, letterSpacing: -14, lineHeight: 1, color: "transparent", WebkitTextStroke: "2px var(--dk-ghost, rgba(255,255,255,.07))", userSelect: "none" }}>’27</div>
+      <Eyebrow color={accent}>{eyebrow}</Eyebrow>
+      <h1 style={{ margin: 0, fontSize: 78, lineHeight: 1.04, fontWeight: 900, letterSpacing: -3, maxWidth: 1100, color: BRAND.text }}>{title}</h1>
+      <div style={{ fontSize: 25, lineHeight: 1.4, color: BRAND.muted, maxWidth: 800 }}>{subtitle}</div>
+      <div style={{ display: "flex", gap: 0, marginTop: 18, maxWidth: 900 }}>
+        {phases.map(([y, l, c]) => (
+          <div key={y} style={{ flex: 1, paddingTop: 12, borderTop: `4px solid ${c}` }}>
+            <div style={{ fontSize: 28, fontWeight: 850, color: c }}>{y}</div>
+            <div style={{ fontSize: 14, letterSpacing: 3, color: BRAND.muted, fontWeight: 700, textTransform: "uppercase" }}>{l}</div>
+          </div>))}
+      </div>
+      {meta.length > 0 && <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+        {meta.filter((m) => !/^(Run|Grow|Transform|Future) \d{4}$/.test(m)).map((m) => <span key={m} style={{ border: `1px solid ${accent}66`, background: `${accent}14`, borderRadius: 99, padding: "8px 18px", fontSize: 16, fontWeight: 700, color: BRAND.text }}>{m}</span>)}
+      </div>}
+    </div>
+  );
+}
+
+/** Run / Grow / Transform — satu kolom per fase dengan teks nyata dari laporan tiap tahun */
+export function JourneySlide({ columns }) {
+  return (
+    <div>
+      <SlideHead eyebrow="Perjalanan" title="Run → Grow → Transform" />
+      <div style={{ display: "grid", gridTemplateColumns: `repeat(${columns.length}, 1fr)`, gap: 20 }}>
+        {columns.map((c) => {
+          const col = phaseColor(c.phase);
+          return (
+            <Glass key={c.year} accent={col} style={{ minHeight: 0, justifyContent: "flex-start" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
+                <div style={{ fontSize: 54, fontWeight: 900, letterSpacing: -2, lineHeight: 1, color: col }}>{c.year}</div>
+                <div style={{ fontSize: 14, letterSpacing: 3, fontWeight: 800, color: BRAND.muted, textTransform: "uppercase", paddingBottom: 6 }}>{c.phase}</div>
+              </div>
+              <div aria-hidden style={{ height: 1, background: BRAND.line, margin: "16px 0 0" }} />
+              {c.items.length
+                ? <ul style={{ margin: "16px 0 0", padding: 0, listStyle: "none", display: "grid", gap: 22, fontSize: 27, lineHeight: 1.4 }}>
+                    {c.items.slice(0, 4).map((t, k) => <li key={k} style={{ display: "flex", gap: 12 }}><span aria-hidden style={{ width: 9, height: 9, borderRadius: 99, background: col, flex: "none", marginTop: 11 }} /><span>{t}</span></li>)}
+                  </ul>
+                : <div style={{ marginTop: 16 }}><Empty hint="Isi RGT pada form laporan tahun ini." /></div>}
+            </Glass>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/** 2027 — outlook & inovasi, per departemen (bukan satu teks campuran) */
+export function FutureSlide({ outlooks, wins = [], risks = [], hint }) {
+  const col = phaseColor("Future");
+  return (
+    <div>
+      <SlideHead eyebrow="Tahun 2027 · Future" title="Harapan & inovasi ke depan" color={col} />
+      <div style={{ display: "grid", gridTemplateColumns: wins.length || risks.length ? "1.5fr 1fr" : "1fr", gap: 20 }}>
+        <div style={{ display: "grid", gap: 14, alignContent: "start" }}>
+          {outlooks.length
+            ? outlooks.slice(0, 4).map((o) => (
+                <Glass key={o.code + o.key} accent={col} style={{ padding: "26px 34px" }}>
+                  <span aria-hidden style={{ position: "absolute", right: 26, top: -2, fontSize: 110, fontWeight: 900, color: col, opacity: 0.22, lineHeight: 1 }}>”</span>
+                  <div style={{ fontSize: 13, letterSpacing: 3, color: col, fontWeight: 800 }}>{o.name.toUpperCase()}</div>
+                  <div style={{ marginTop: 10, fontSize: outlooks.length <= 2 ? 36 : 25, lineHeight: 1.45 }}>{String(o.value)}</div>
+                </Glass>))
+            : <Empty hint={hint || "Belum ada outlook 2027 dari departemen terkait."} />}
+        </div>
+        {(wins.length || risks.length) ? <div style={{ display: "grid", gap: 14, alignContent: "start" }}>
+          <Glass><Eyebrow color={BRAND.emerald}>Peluang</Eyebrow>
+            {wins.length ? <ul style={{ margin: "10px 0 0", paddingLeft: 18, display: "grid", gap: 10, fontSize: 21 }}>{wins.slice(0, 4).map((w, k) => <li key={k}>{w}</li>)}</ul> : <div style={{ color: BRAND.muted, marginTop: 8, fontSize: 14 }}>—</div>}
+          </Glass>
+          <Glass><Eyebrow color={BRAND.warn}>Tantangan</Eyebrow>
+            {risks.length ? <ul style={{ margin: "10px 0 0", paddingLeft: 18, display: "grid", gap: 10, fontSize: 21 }}>{risks.slice(0, 4).map((w, k) => <li key={k}>{w}</li>)}</ul> : <div style={{ color: BRAND.muted, marginTop: 8, fontSize: 14 }}>—</div>}
+          </Glass>
+        </div> : null}
+      </div>
+    </div>
+  );
+}
+
+/* ───────── helper cerita angka ───────── */
+export const ptText = (d) => (d == null ? "—" : Math.abs(d) >= 1000 ? `${d > 0 ? "+" : "−"}999 pt+` : `${d >= 0 ? "+" : "−"}${Math.abs(d).toFixed(1)} pt`);
+export const deltaColor = (d) => (d == null ? BRAND.muted : d >= 0 ? BRAND.emerald : BRAND.bad);
+
+/** kalimat tren dari baris [{year,value}] (value null = belum ada data) */
+export function trendInsight(rows, noun = "Capaian") {
+  const have = rows.filter((r) => r.value != null);
+  if (!have.length) return "Belum ada data capaian 2024–2026 untuk diceritakan.";
+  const best = have.reduce((a, b) => (b.value > a.value ? b : a));
+  const first = have[0], last = have[have.length - 1];
+  if (have.length === 1) return `${noun} baru tercatat di ${last.year}: ${pctText(last.value)}.`;
+  const d = last.value - first.value;
+  return `${noun} tertinggi di ${best.year} (${pctText(best.value)}); dari ${first.year} ke ${last.year} ${d >= 0 ? "naik" : "turun"} ${Math.abs(d) >= 1000 ? "lebih dari 999" : Math.abs(d).toFixed(1)} poin.`;
+}
+
+/** slide tren standar: grafik batang per tahun + kalimat kunci di bawahnya */
+export function TrendSlide({ accent, eyebrow = "Tren 2024–2026", title, rows, noun }) {
+  const have = rows.filter((r) => r.value != null);
+  const last = have[have.length - 1], prev = have[have.length - 2];
+  const d = last && prev ? last.value - prev.value : null;
+  return (
+    <div>
+      <SlideHead color={accent} eyebrow={eyebrow} title={title} right={d != null ? <span style={{ fontSize: 16, fontWeight: 800, color: deltaColor(d), background: `${deltaColor(d)}1f`, borderRadius: 99, padding: "7px 16px" }}>{ptText(d)} vs {prev.year}</span> : null} />
+      <div style={{ display: "grid", gridTemplateRows: "1fr auto", gap: 18, minHeight: 0 }}>
+        <Glass style={{ display: "grid", placeItems: "center", padding: 14 }}><YearBars rows={rows} height={330} /></Glass>
+        <Insight color={accent} icon="trendUp" label="Cerita tren">{trendInsight(rows, noun)}</Insight>
+      </div>
     </div>
   );
 }

@@ -409,6 +409,74 @@ export function buildSalesSlides(data, { mode = "OMZET", plantName = "" } = {}) 
     </div>
   );
 
+  /* Top 3 produk per sales — tahun terbaru yang punya data sales */
+  const MIN_P = 3;
+  const spYi = (() => { for (let i = yearData.length - 1; i >= 0; i--) if (yearData[i].sList.some((s) => txt(s.salesName))) return i; return -1; })();
+  const spYear = spYi >= 0 ? yearData[spYi] : null;
+  const perSales = (() => {
+    if (!spYear) return [];
+    const map = new Map();
+    spYear.sList.forEach((s) => {
+      const name = txt(s.salesName); if (!name) return;
+      const e = map.get(name) || { name, act: 0, tgt: 0, prods: new Map() };
+      e.act += toNum(s.actualVal); e.tgt += toNum(s.targetProfit || s.targetVal);
+      (Array.isArray(s.topProducts) ? s.topProducts : []).forEach((p) => {
+        const pn = txt(p?.productName); if (!pn) return;
+        const [pr] = productsOf({ salesPerformances: [{ topProducts: [p] }] });
+        const k = pn.toLowerCase(), c = e.prods.get(k) || { name: pn, lalu: 0, jalan: 0 };
+        c.lalu += pr ? pr.lalu : 0; c.jalan += pr ? pr.jalan : 0; e.prods.set(k, c);
+      });
+      map.set(name, e);
+    });
+    return [...map.values()].map((e) => ({ ...e, prods: [...e.prods.values()].sort((a, b) => b.jalan - a.jalan), ach: e.tgt > 0 ? (e.act / e.tgt) * 100 : 0 })).sort((a, b) => b.act - a.act);
+  })();
+  const salesProducts = (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12, height: "100%" }}>
+      <SlideHeader icon={<Icon name="box" size={22} color={LIME} />} title="Top 3 Produk per Sales" subtitle={spYear ? `Tiga produk andalan tiap personel · data ${spYear.yr} · ${perSales.length} personel` : "Belum ada data sales"} />
+      {perSales.length ? (
+        <div style={{ flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gridAutoRows: "1fr", gap: 12 }}>
+          {perSales.slice(0, 6).map((sp, si) => {
+            const top = sp.prods.slice(0, MIN_P), mx = Math.max(...top.flatMap((p) => [p.jalan, p.lalu]), 1);
+            const ok = sp.ach >= 100;
+            return (
+              <div key={sp.name} style={{ ...card, padding: 14, display: "flex", flexDirection: "column", gap: 8, minHeight: 0, overflow: "hidden" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ width: 40, height: 40, borderRadius: 12, display: "grid", placeItems: "center", fontSize: 18, fontWeight: 900, color: "#fff", background: `linear-gradient(135deg, ${NAVY}, ${BLUE})`, flex: "none", position: "relative" }}>
+                    {sp.name.charAt(0).toUpperCase()}{si === 0 && <span style={{ position: "absolute", top: -9, right: -9, fontSize: 14 }}>🏆</span>}
+                  </div>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div title={sp.name} style={{ ...ellipsis, fontSize: 16, fontWeight: 900, color: NAVY, lineHeight: 1.2 }}>{sp.name}</div>
+                    <div style={{ ...ellipsis, fontSize: 11, color: SLATE[500] }}>{sp.tgt > 0 ? `${rp(sp.act)} · ${sp.ach > 999 ? ">999" : sp.ach.toFixed(0)}% target` : `Realisasi ${rp(sp.act)}`}</div>
+                  </div>
+                  <span style={{ padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 800, flex: "none", background: top.length >= MIN_P ? "#d1fae5" : "#fef3c7", color: top.length >= MIN_P ? "#065f46" : "#92400e" }}>{Math.min(top.length, MIN_P)}/{MIN_P}</span>
+                </div>
+                <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", gap: 6 }}>
+                  {Array.from({ length: MIN_P }, (_, i) => top[i] || null).map((p, i) => p ? (
+                    <div key={i} style={{ flex: 1, minHeight: 0, borderRadius: 10, background: SLATE[50], border: `1px solid ${SLATE[200]}`, borderLeft: `4px solid ${PIE_COLORS[i]}`, padding: "4px 10px", display: "flex", flexDirection: "column", justifyContent: "center", gap: 3, minWidth: 0 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ fontSize: 12, fontWeight: 900, color: SLATE[400], flex: "none" }}>#{i + 1}</span>
+                        <span title={p.name} style={{ ...ellipsis, flex: 1, fontSize: 14, fontWeight: 800, color: NAVY }}>{p.name}</span>
+                        {(p.jalan > 0 || p.lalu > 0) && <DeltaChip cur={p.jalan} prev={p.lalu} />}
+                      </div>
+                      {(p.jalan > 0 || p.lalu > 0) ? (
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <Track pct={(p.jalan / mx) * 100} color={PIE_COLORS[i]} h={7} />
+                          <span style={{ width: 82, textAlign: "right", fontSize: 11, fontWeight: 800, color: SLATE[600], whiteSpace: "nowrap" }}>{rp(p.jalan)}</span>
+                        </div>
+                      ) : <span style={{ fontSize: 11, fontStyle: "italic", color: SLATE[400] }}>nilai belum diisi</span>}
+                    </div>
+                  ) : (
+                    <div key={i} style={{ flex: 1, minHeight: 0, borderRadius: 10, border: `1px dashed ${SLATE[300]}`, display: "grid", placeItems: "center" }}><span style={{ fontSize: 12, fontStyle: "italic", color: SLATE[400] }}>#{i + 1} belum diisi</span></div>
+                  ))}
+                </div>
+              </div>);
+          })}
+        </div>
+      ) : <div style={{ padding: "40px 0", textAlign: "center" }}><Dash text="Belum ada data sales." /></div>}
+      {perSales.length > 6 && <div style={{ fontSize: 12, color: SLATE[500], flex: "none" }}>+{perSales.length - 6} personel lain ada di laporan</div>}
+    </div>
+  );
+
   const products = (
     <div style={{ display: "flex", flexDirection: "column", gap: 12, height: "100%" }}>
       <SlideHeader icon={<Icon name="box" size={22} color={LIME} />} title="Top Produk / Item Group" subtitle={`Penjualan berjalan vs tahun lalu · ${prodRows.length} item group`} />
@@ -538,6 +606,7 @@ export function buildSalesSlides(data, { mode = "OMZET", plantName = "" } = {}) 
         <div style={{ ...card, flex: 1, minHeight: 0, padding: "12px 0", display: "flex", flexDirection: "column" }}><YearTimeline yearData={yearData} /></div>
       </div>) },
     { id: "team", label: "Tim Sales", node: team },
+    { id: "salesProducts", label: "Top 3 Produk", node: salesProducts },
     { id: "products", label: "Produk", node: products },
     { id: "innovation", label: "Inovasi", node: innovation },
     { id: "support", label: "Sales Support", node: support },
