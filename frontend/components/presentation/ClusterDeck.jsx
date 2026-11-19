@@ -2,7 +2,7 @@
 import React, { useMemo } from "react";
 import DeckShell from "./DeckShell.jsx";
 import { CoverSlide, SlideHead, Glass, Eyebrow, ArcGauge, YearBars, Pill, Empty, JourneySlide, FutureSlide, StatTile, Sparkline, ClosingSlide, TrendSlide, ptText, deltaColor, pctText } from "./slides.jsx";
-import { achievementOf } from "./CommercialDeck.jsx";
+import { achievementOf } from "../../lib/presentation/commercialData.js";
 import { buildClusterData, collectByDept, resolveDepartment, toNum, phaseOf, BRAND, statusOf, isEmptyValue } from "../../lib/presentation/index.js";
 import { kpiMatrix, clip } from "../../lib/presentation/kpi.js";
 import { DeptMatrixSlide } from "./KpiDeck.jsx";

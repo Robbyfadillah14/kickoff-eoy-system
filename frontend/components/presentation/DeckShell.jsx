@@ -31,7 +31,7 @@ const ICON = {
 const stageBg = (accent, theme = "light") => `radial-gradient(circle at 1px 1px, var(--dk-dot) 1px, transparent 0) 0 0/28px 28px, radial-gradient(1000px 560px at 88% -15%, ${accent}${theme === "dark" ? "33" : "26"}, transparent 62%), radial-gradient(800px 480px at -8% 112%, ${BRAND.emerald}${theme === "dark" ? "22" : "1c"}, transparent 62%), var(--dk-bg)`;
 
 /** Footer panggung (sama untuk layar & cetak) */
-const StageFooter = ({ index, total, accent = BRAND.cyan }) => (
+const StageFooter = ({ index, total, accent = BRAND.cyan, bare = false }) => bare ? null : (
   <>
     <div aria-hidden style={{ position: "absolute", left: 0, top: 0, right: 0, height: 4, background: `linear-gradient(90deg, ${BRAND.cyan}, ${BRAND.emerald} 40%, #a78bfa 70%, ${BRAND.warn})` }} />
     {index != null && total > 1 && <div aria-hidden style={{ position: "absolute", left: 0, top: 4, height: 2, width: `${((index + 1) / total) * 100}%`, background: accent, opacity: 0.9, transition: "width .4s" }} />}
@@ -47,11 +47,12 @@ const StageFooter = ({ index, total, accent = BRAND.cyan }) => (
  * lalu window.print() -> pilih "Simpan sebagai PDF". Tampilan sama persis dengan layar (bukan tangkapan layar).
  * fileName dipakai sebagai nama file (browser memakai document.title).
  */
-export default function DeckShell({ title, subtitle, slides, accent = BRAND.cyan, active = true, autoplayMs = 9000, onClose, fileName, printable = true }) {
+export default function DeckShell({ title, subtitle, slides, accent = BRAND.cyan, active = true, autoplayMs = 9000, onClose, fileName, printable = true, lockTheme = null, bare = false, stageBgOverride = null }) {
   const [printing, setPrinting] = useState(false);
   // tema deck: terang (default, nyaman dibaca di ruang rapat & saat dicetak) atau gelap; pilihan diingat per browser
-  const [theme, setTheme] = useState("light");
-  useEffect(() => { try { const t = localStorage.getItem("dk-theme"); if (t === "dark" || t === "light") setTheme(t); } catch {} }, []);
+  const [theme0, setTheme] = useState("light");
+  const theme = lockTheme || theme0;
+  useEffect(() => { if (lockTheme) return; try { const t = localStorage.getItem("dk-theme"); if (t === "dark" || t === "light") setTheme(t); } catch {} }, []);
   const toggleTheme = useCallback(() => setTheme((t) => { const n = t === "dark" ? "light" : "dark"; try { localStorage.setItem("dk-theme", n); } catch {} return n; }), []);
   const vars = themeVars(theme);
   const printDeck = useCallback(() => {
@@ -136,15 +137,15 @@ export default function DeckShell({ title, subtitle, slides, accent = BRAND.cyan
         <div style={{ marginLeft: "auto", fontSize: 11, color: BRAND.muted, fontVariantNumeric: "tabular-nums" }}>{cur?.label} · {i + 1}/{n}</div>
         <button aria-label={playing ? "Jeda" : "Putar otomatis"} onClick={() => setPlaying((v) => !v)} style={btn}><Svg d={playing ? ICON.pause : ICON.play} /></button>
         {printable && <button aria-label="Unduh PDF" title="Unduh PDF (simpan sebagai PDF di dialog cetak)" onClick={printDeck} disabled={printing} style={{ ...btn, width: "auto", padding: "0 12px", gap: 6, fontSize: 12, fontWeight: 700, opacity: printing ? 0.5 : 1 }}><Svg d={ICON.down} size={14} />PDF</button>}
-        <button aria-label={theme === "dark" ? "Tema terang" : "Tema gelap"} title={theme === "dark" ? "Ganti ke tema terang" : "Ganti ke tema gelap"} onClick={toggleTheme} style={btn}><Svg d={theme === "dark" ? ICON.sun : ICON.moon} /></button>
+        {!lockTheme && <button aria-label={theme === "dark" ? "Tema terang" : "Tema gelap"} title={theme === "dark" ? "Ganti ke tema terang" : "Ganti ke tema gelap"} onClick={toggleTheme} style={btn}><Svg d={theme === "dark" ? ICON.sun : ICON.moon} /></button>}
         <button aria-label="Layar penuh" onClick={toggleFull} style={btn}><Svg d={ICON.full} /></button>
       </div>
 
       <div ref={boxRef} style={{ position: "relative", flex: 1, minHeight: 0, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
         <div style={{ width: STAGE_W, height: STAGE_H, flex: "none", transform: `scale(${scale})`, transformOrigin: "center center", position: "relative",
-          background: stageBg(accent, theme) }}>
-          <div key={cur?.id ?? i} className="dk-slide dk-body" style={{ position: "absolute", inset: 0, padding: "48px 56px 52px" }}>{cur?.node}</div>
-          <StageFooter index={i} total={n} accent={accent} />
+          background: stageBgOverride || stageBg(accent, theme) }}>
+          <div key={cur?.id ?? i} className="dk-slide dk-body" style={{ position: "absolute", inset: 0, padding: bare ? "20px 20px 20px" : "48px 56px 52px" }}>{cur?.node}</div>
+          <StageFooter index={i} total={n} accent={accent} bare={bare} />
         </div>
       </div>
 
@@ -177,9 +178,9 @@ export default function DeckShell({ title, subtitle, slides, accent = BRAND.cyan
             }
           `}</style>
           {slides.map((sl, k) => (
-            <div key={sl.id} className="dk-print-page" style={{ background: stageBg(accent, theme), color: BRAND.text, fontFamily: "ui-sans-serif, system-ui, 'Segoe UI', sans-serif" }}>
-              <div className="dk-body" style={{ position: "absolute", inset: 0, padding: "48px 56px 52px" }}>{sl.node}</div>
-              <StageFooter index={k} total={slides.length} accent={accent} />
+            <div key={sl.id} className="dk-print-page" style={{ background: stageBgOverride || stageBg(accent, theme), color: BRAND.text, fontFamily: "ui-sans-serif, system-ui, 'Segoe UI', sans-serif" }}>
+              <div className="dk-body" style={{ position: "absolute", inset: 0, padding: bare ? "20px 20px 20px" : "48px 56px 52px" }}>{sl.node}</div>
+              <StageFooter index={k} total={slides.length} accent={accent} bare={bare} />
             </div>
           ))}
         </div>, document.body)}
