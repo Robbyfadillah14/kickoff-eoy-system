@@ -4,14 +4,10 @@ import { useEffect, useMemo, useState, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { apiFetch } from "../../../lib/api";
-import {
-  CLUSTERS, resolveDepartment, clusterOfDepartment,
-  buildClusterData, toLegacyReport, toLegacyYearlyMap,
-} from "../../../lib/presentation";
+import { CLUSTERS, resolveDepartment, clusterOfDepartment } from "../../../lib/presentation";
 
 import CommercialDeck from "../../../components/presentation/CommercialDeck";
 import { DigitalMarketingDeck, ProductDevelopmentDeck } from "../../../components/presentation/ClusterDeck";
-// Deck lama: sementara tetap dipakai, tetapi sekarang menerima data GABUNGAN seluruh departemen klaster (bukan laporan pertama saja)
 import FinancialDeck from "../../../components/presentation/FinancialDeck";
 import OperationalHospitalityDeck from "../../../components/presentation/OperationalHospitalityDeck";
 
@@ -85,8 +81,6 @@ function LiveContent() {
   const plant = plants.find((p) => p.id === plantId);
   const plantName = plant?.name || plant?.code || "";
 
-  const data = useMemo(() => buildClusterData(normalized, { cluster, plantId }), [normalized, cluster, plantId]);
-
   // OMZET/PROFIT: dari field salesType laporan Sales terbaru, bukan dari kata di teks
   const detectedMode = useMemo(() => {
     if (cluster !== "COMMERCIAL") return "OMZET";
@@ -107,16 +101,8 @@ function LiveContent() {
     if (cluster === "COMMERCIAL") return <CommercialDeck {...common} mode={deckMode} onClose={() => router.push("/presentation")} />;
     if (cluster === "DIGITAL_MARKETING") return <DigitalMarketingDeck {...common} onClose={() => router.push("/presentation")} />;
     if (cluster === "PRODUCT_DEVELOPMENT") return <ProductDevelopmentDeck {...common} onClose={() => router.push("/presentation")} />;
-    // deck lama: beri data gabungan per klaster
-    const legacyYears = toLegacyYearlyMap(data);
-    const report = toLegacyReport(data, 2026) || toLegacyReport(data, 2025) || toLegacyReport(data, 2024) ||
-      { plant, department: { name: CLUSTERS[cluster].label }, metricsJson: {} };
-    const Old = cluster === "FINANCIAL" ? FinancialDeck : OperationalHospitalityDeck;
-    return (
-      <div className="h-full overflow-auto flex items-center justify-center p-4">
-        <div className="w-full max-w-6xl"><Old report={{ ...report, plant }} allYearlyReports={legacyYears} /></div>
-      </div>
-    );
+    const Deck = cluster === "FINANCIAL" ? FinancialDeck : OperationalHospitalityDeck;
+    return <Deck {...common} onClose={() => router.push("/presentation")} />;
   };
 
   return (
