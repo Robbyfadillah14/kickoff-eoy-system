@@ -1,5 +1,6 @@
 "use client";
 import React, { useState } from "react";
+import FinanceFigures from "./FinanceFigures";
 import { parseExcelFile, applyExcelImport } from "../../lib/reportExcel";
 import { FileSpreadsheet, Upload, CheckCircle2, Edit3, Eye } from "lucide-react";
 
@@ -258,6 +259,12 @@ export default function FinanceAPForm({ form, setForm }) {
               </div>
             </div>
           </section>
+
+          <FinanceFigures form={form} setForm={setForm} title="Angka Hutang (Rp)" desc="Total hutang dan jumlah yang sudah dibayarkan."
+            fields={[
+              { key: "apOutstanding", label: "Total hutang berjalan (akhir tahun)", hint: "Contoh: 5400000000" },
+              { key: "apPaid", label: "Hutang terbayar tahun ini", hint: "Contoh: 21000000000" },
+            ]} />
 
           {/* 2. CATATAN EVALUASI / KENDALA AP */}
           <section className="bg-card border border-amber-500/40 rounded-xl p-4 space-y-3">

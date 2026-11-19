@@ -1,5 +1,6 @@
 "use client";
 import React, { useState } from "react";
+import FinanceFigures from "./FinanceFigures";
 import { parseExcelFile, applyExcelImport } from "../../lib/reportExcel";
 import { FileSpreadsheet, Upload, CheckCircle2, Edit3, Eye } from "lucide-react";
 
@@ -247,6 +248,12 @@ export default function FinanceARForm({ form, setForm }) {
               </div>
             </div>
           </section>
+
+          <FinanceFigures form={form} setForm={setForm} title="Angka Piutang (Rp)" desc="Total piutang dan bagian yang sudah jatuh tempo."
+            fields={[
+              { key: "arOutstanding", label: "Total piutang berjalan (akhir tahun)", hint: "Contoh: 8200000000" },
+              { key: "arOverdue", label: "Piutang jatuh tempo / overdue", hint: "Contoh: 650000000" },
+            ]} />
 
           {/* 2. TABEL REKAPITULASI BAD DEBT / PIUTANG BERMASALAH */}
           <section className="bg-card border border-amber-500/40 rounded-xl p-4 space-y-4">

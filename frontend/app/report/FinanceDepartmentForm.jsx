@@ -1,5 +1,6 @@
 "use client";
 import React, { useState } from "react";
+import FinanceFigures from "./FinanceFigures";
 import { parseExcelFile, applyExcelImport } from "../../lib/reportExcel";
 import { FileSpreadsheet, Upload, CheckCircle2, Edit3, Eye } from "lucide-react";
 
@@ -247,6 +248,14 @@ export default function FinanceDepartmentForm({ form, setForm }) {
               </div>
             </div>
           </section>
+
+          <FinanceFigures form={form} setForm={setForm} title="Angka Keuangan (Rp)" desc="Saldo kas, dana cadangan, serta arus kas masuk dan keluar tahun ini."
+            fields={[
+              { key: "cashEnd", label: "Saldo kas akhir tahun", hint: "Contoh: 2500000000" },
+              { key: "reserveFund", label: "Dana cadangan terkumpul", hint: "Contoh: 450000000" },
+              { key: "cashIn", label: "Total kas masuk setahun", hint: "Contoh: 18000000000" },
+              { key: "cashOut", label: "Total kas keluar setahun", hint: "Contoh: 15500000000" },
+            ]} />
 
           {/* 2. CATATAN EVALUASI & KEBIJAKAN KEUANGAN */}
           <section className="bg-card border border-amber-500/40 rounded-xl p-4 space-y-3">

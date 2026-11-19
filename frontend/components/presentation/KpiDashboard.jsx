@@ -162,7 +162,7 @@ export function PanelsSlide({ title, eyebrow, items, sub }) {
         {items.slice(0, 6).map((it, k) => (
           <Panel key={it.key} title={clipTxt(it.title, 30)} icon={it.icon || "chart"} color={colors[k % 6]} tag={it.tag} label={it.label} value={it.value}>
             {it.numeric
-              ? <BarsChart labels={YEARS.map(String)} series={[{ values: it.values }]} max={it.max} fmt={it.fmt} h={290} />
+              ? <BarsChart labels={YEARS.map(String)} series={it.series || [{ values: it.values }]} max={it.max} fmt={it.fmt} h={items.length > 3 ? 150 : 290} />
               : <div style={{ fontSize: 17, lineHeight: 1.4, opacity: 0.95 }}>{it.text || "Belum diisi."}</div>}
           </Panel>))}
       </div>

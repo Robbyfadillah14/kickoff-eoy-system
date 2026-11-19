@@ -96,6 +96,33 @@ function BadDebtSlide({ year, list, accent }) {
   );
 }
 
+/** Panel angka keuangan (Rp) dari isian opsional form Finance Dept / AR / AP. Hanya panel yang punya data. */
+const MONEY_PANELS = [
+  { dept: "FIN_DEPT", id: "cashEnd", title: "Saldo kas akhir tahun", icon: "layers", keys: ["cashEnd"] },
+  { dept: "FIN_DEPT", id: "cashFlow", title: "Arus kas", icon: "trendUp", keys: ["cashIn", "cashOut"], second: "#F5B83D", net: true },
+  { dept: "FIN_DEPT", id: "reserve", title: "Dana cadangan", icon: "target", keys: ["reserveFund"] },
+  { dept: "FIN_AR", id: "ar", title: "Piutang vs overdue", icon: "file", keys: ["arOutstanding", "arOverdue"], second: "#F5B83D", ratio: "overdue" },
+  { dept: "FIN_AP", id: "ap", title: "Hutang vs terbayar", icon: "file", keys: ["apOutstanding", "apPaid"], second: "#F5B83D" },
+];
+const moneyShort = (v) => formatRupiah(v).replace(/^Rp\s*/, "");
+export function moneyPanels(y, solo) {
+  const val = (yr, dept, k) => { const raw = y[yr].byDept[dept]?.metrics?.[k]; return isEmptyValue(raw) ? null : toNum(raw); };
+  const out = [];
+  for (const p of MONEY_PANELS) {
+    if (solo && solo.code !== p.dept) continue;
+    const series = p.keys.map((k, i) => ({ values: ACTUAL_YEARS.map((yr) => val(yr, p.dept, k)), color: i === 1 ? p.second : undefined }));
+    if (!series.some((s) => s.values.some((v) => v != null))) continue;
+    const li = [...ACTUAL_YEARS].reverse().find((yr) => series.some((s) => s.values[ACTUAL_YEARS.indexOf(yr)] != null));
+    const ix = ACTUAL_YEARS.indexOf(li); const a = series[0].values[ix], b = series[1]?.values[ix];
+    let value = moneyShort(a ?? b ?? 0), label = `${li}`;
+    if (p.net && a != null && b != null) { value = moneyShort(a - b); label = `${li} · selisih bersih`; }
+    else if (p.ratio && a > 0 && b != null) { value = `${((b / a) * 100).toFixed(1)}%`; label = `${li} · overdue dari total`; }
+    const legend = series[1] ? (p.net ? "kas masuk / keluar" : p.ratio ? "total / overdue" : "total / terbayar") : undefined;
+    out.push({ key: p.id, title: p.title, icon: p.icon, tag: legend, label, value, numeric: true, series, max: Math.max(1, ...series.flatMap((s) => s.values.map((v) => v ?? 0))) * 1.15, fmt: moneyShort });
+  }
+  return out;
+}
+
 export function buildKpiSlides(data, cfg, { plantName = "", deptCode = null } = {}) {
   if (data.needsPlant) return [{ id: "plant", label: "Pilih plant", node: <div style={{ height: "100%", display: "grid", placeItems: "center" }}><Empty hint="Data berisi lebih dari satu plant — pilih plant dulu agar angka tidak tercampur.">Plant belum dipilih</Empty></div> }];
 
@@ -176,6 +203,8 @@ export function buildKpiSlides(data, cfg, { plantName = "", deptCode = null } = 
         return vs.some((v) => v != null) ? { ...base, numeric: true, values: vs, max: 100, fmt: (v) => `${Math.round(v)}%` } : { ...base, text: clip(ev || "Isian informasi (tanpa target angka).", 150) };
       }).filter(Boolean);
 
+  const money = data.cluster === "FINANCIAL" ? moneyPanels(y, solo) : [];
+  const moneySlide = money.length ? [{ id: "money", label: "Angka keuangan", node: <PanelsSlide eyebrow={`${solo ? solo.name : cfg.title} · 2024–2026`} title="Angka keuangan (Rp)" items={money} /> }] : [];
   const slides = [
     { id: "cover", label: "Cover", node: <CoverSlide accent={cfg.accent} eyebrow={cfg.eyebrow} title={`${solo ? solo.name : cfg.title} 2024–2027`} subtitle={cfg.tagline} meta={[plantName || "Plant terpilih", "Run 2024", "Grow 2025", "Transform 2026", "Future 2027"]} /> },
   ];
@@ -190,13 +219,13 @@ export function buildKpiSlides(data, cfg, { plantName = "", deptCode = null } = 
           completeness={Object.fromEntries(ALL_YEARS.map((yr) => [yr, data.completeness[yr] || null]))}
           filledNote={solo ? `Laporan ${ey} ${y[ey].byDept[solo.code] ? "sudah diisi" : "belum diisi"}.` : `${data.completeness[ey]?.filled ?? 0}/${data.completeness[ey]?.total ?? 0} departemen klaster mengisi laporan ${ey}.`} /> },
       { id: "panels", label: solo ? "Per indikator" : "Per departemen", node: <PanelsSlide eyebrow={`${solo ? solo.name : cfg.title} · 2024–2026`} title={solo ? "Capaian per indikator" : "Capaian per departemen"} items={panelItems} /> },
-      ...deptSlides, ...bad,
+      ...moneySlide, ...deptSlides, ...bad,
     );
   }
 
   slides.push(
     { id: "journey", label: "Perjalanan", node: <JourneySlide columns={journey} /> },
-    { id: "future", label: "2027", node: <FutureSlide outlooks={outlooks} wins={wins} risks={risks} hint={!solo && data.completeness[2027]?.missing?.length ? `Belum mengisi 2027: ${data.completeness[2027].missing.join(", ")}` : undefined} /> },
+    { id: "future", label: "2027", node: <FutureSlide outlooks={outlooks} wins={wins} risks={risks} hint={!solo && data.completeness[2027]?.missing?.length ? `Belum mengisi 2027: ${data.completeness[2027].missing.map((c) => resolveDepartment(c)?.short || c).join(", ")}` : undefined} /> },
     ...(latest && cur?.total > 0 || outlooks.length ? [{ id: "closing", label: "Penutup", node: <ClosingSlide accent={cfg.accent} title="Ringkasan & langkah berikutnya"
       subtitle={cur && cur.total > 0 ? `${solo ? solo.name : cfg.title} ${latest}: ${cur.ok} dari ${cur.total} indikator bertarget tercapai — yang patut dirayakan, dijaga, dan dikejar di 2027.` : undefined}
       wins={latest ? feeders.flatMap((d) => kpiMatrix(data, d.code, [latest]).rows.filter((r) => r.cells[latest]?.met === true).map((r) => clip(`${solo ? "" : d.short + ": "}${r.label} — ${r.cells[latest].display}`, 62))) : []}
