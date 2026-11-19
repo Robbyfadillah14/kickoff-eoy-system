@@ -1,194 +1,99 @@
 "use client";
-import { useEffect, useState } from "react";
+// frontend/app/presentation/page.jsx — hub presentasi
+// Akun divisi: langsung ke presentasi divisinya sendiri. Superadmin: seluruh divisi, dikelompokkan per klaster.
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { analyzePresentationContext } from "../../lib/presentationEngine";
+import { apiFetch } from "../../lib/api";
+import { CLUSTERS, DEPARTMENTS, resolveDepartment } from "../../lib/presentation";
+import { asList, pickUserDept } from "../../lib/reportForm";
+
+const TONE = {
+  COMMERCIAL: { icon: "📈", text: "text-cyan-400", border: "hover:border-cyan-500" },
+  DIGITAL_MARKETING: { icon: "🎯", text: "text-blue-400", border: "hover:border-blue-500" },
+  PRODUCT_DEVELOPMENT: { icon: "🚀", text: "text-cyan-300", border: "hover:border-cyan-400" },
+  FINANCIAL: { icon: "💰", text: "text-emerald-400", border: "hover:border-emerald-500" },
+  OPERATIONAL_HOSPITALITY: { icon: "⚙️", text: "text-blue-300", border: "hover:border-blue-400" },
+};
+const NOTE = {
+  COMMERCIAL: "Omzet vs profit, customer, dan roadmap Run → Grow → Transform.",
+  DIGITAL_MARKETING: "Campaign, lead generation, dan pertumbuhan digital.",
+  PRODUCT_DEVELOPMENT: "Riset, launching produk baru, dan pengujian sampel.",
+  FINANCIAL: "Uang: AR/AP, akuntansi, pajak, dan admin tukar faktur.",
+  OPERATIONAL_HOSPITALITY: "Non-uang: pengadaan, ekspor-impor, logistik, dokumen, dan SDM.",
+};
+
 export default function PresentationIndexPage() {
   const [user, setUser] = useState(null);
   const [departments, setDepartments] = useState([]);
-  const [userDeptName, setUserDeptName] = useState("");
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    const fallback = JSON.parse(localStorage.getItem("user") || "null");
-    if (fallback) {
-      setUser(fallback);
-    } else {
-      window.location.href = "/login";
-    }
-
-    fetch("/api/departments")
-      .then((r) => r.json())
-      .then((data) => {
-        const list = Array.isArray(data) ? data : data?.data || data?.departments || [];
-        setDepartments(list);
-        
-        const uDeptId = fallback?.departmentId || fallback?.departments?.[0]?.departmentId || fallback?.department?.id;
-        const found = list.find((d) => d.id === uDeptId);
-        if (found) {
-          setUserDeptName(found.name);
-        } else {
-          setUserDeptName(fallback?.department || "General Operational");
-        }
-      })
-      .catch((err) => console.error("Gagal memuat master departemen:", err));
+    let u = null;
+    try { u = JSON.parse(localStorage.getItem("user") || "null"); } catch {}
+    if (!u) { window.location.href = "/login"; return; }
+    setUser(u);
+    apiFetch("/api/departments").then((d) => setDepartments(asList(d))).catch(() => {}).finally(() => setLoaded(true));
   }, []);
 
-  if (!user) return <div className="min-h-screen bg-slate-950 p-6 text-slate-400 text-sm">Memuat Command Center...</div>;
+  const isSuper = user?.role === "SUPER_ADMIN";
+  const plantQ = !isSuper && user?.plantId ? `&plantId=${user.plantId}` : "";
+  const deckHref = (d) => `/presentation/dept?deptId=${d.id}${plantQ}`;
 
-  // Analisis Smart Engine untuk Divisi User Aktif
-  const activeContext = analyzePresentationContext({}, userDeptName);
-  const userDeptId = user?.departmentId || user?.departments?.[0]?.departmentId || user?.department?.id || "";
+  const known = useMemo(() => departments.filter((d) => resolveDepartment(d.name)), [departments]);
+  const own = useMemo(() => (user && !isSuper ? pickUserDept(user, departments) : null), [user, isSuper, departments]);
+  const groups = useMemo(() => Object.keys(CLUSTERS).map((c) => ({
+    id: c,
+    depts: DEPARTMENTS.filter((r) => r.cluster === c).map((r) => known.find((d) => resolveDepartment(d.name)?.code === r.code)).filter(Boolean),
+  })).filter((g) => g.depts.length), [known]);
+
+  if (!user) return <div className="min-h-screen bg-slate-950 p-6 text-slate-400 text-sm">Memuat presentasi…</div>;
 
   return (
     <div className="min-h-[85vh] flex flex-col items-center justify-center text-center space-y-6 max-w-5xl mx-auto px-4 py-8">
-      {/* BADGE HEADER */}
       <div className="space-y-2">
-        <span className="text-xs font-mono text-cyan-400 bg-cyan-500/10 px-3 py-1 rounded-full border border-cyan-500/30">
-          PT Ekasurya Inout Indonesia — Smart Presentation Command Center
-        </span>
-        <h1 className="text-3xl font-black text-white tracking-wide">
-          Pilih Mode Presentation Deck
-        </h1>
-        <p className="text-xs text-slate-400 font-mono max-w-xl mx-auto">
-          Sistem otomatis mendeteksi profil divisi kamu (<span className="text-cyan-400 font-semibold">{userDeptName}</span>) dan mengelompokkan bentuk slide secara cerdas.
-        </p>
+        <span className="text-xs font-mono text-cyan-400 bg-cyan-500/10 px-3 py-1 rounded-full border border-cyan-500/30">PT Ekasurya Inout Indonesia — Presentation Mode</span>
+        <h1 className="text-3xl font-black text-white tracking-wide">{isSuper ? "Pilih Presentasi" : "Presentasi Divisi Kamu"}</h1>
+        <p className="text-xs text-slate-400 font-mono max-w-xl mx-auto">RUN 2024 • GROW 2025 • TRANSFORM 2026 • FUTURE 2027 — dari data yang sudah tersimpan di form.</p>
       </div>
 
-      {/* AUTO-DETECTED RECOMMENDED DECK CARD */}
-      <div className="w-full bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 border border-cyan-500/50 p-5 rounded-2xl text-left flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-2xl">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-mono text-cyan-400 font-bold bg-cyan-500/20 px-2 py-0.5 rounded">
-              🎯 Rekomendasi Otomatis (Smart Detected)
-            </span>
-            <span className="text-xs font-mono text-slate-400">
-              Klaster: {activeContext.clusterName}
-            </span>
-          </div>
-          <h3 className="text-base font-bold text-white">
-            Presentasi Live — {userDeptName}
-          </h3>
-          <p className="text-xs text-slate-300">
-            {activeContext.insight}
-          </p>
+      {!isSuper && (
+        <div className="w-full bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 border border-cyan-500/50 p-5 rounded-2xl text-left flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-2xl">
+          {own ? (
+            <>
+              <div className="space-y-1">
+                <span className="text-xs font-mono text-cyan-400 font-bold bg-cyan-500/20 px-2 py-0.5 rounded">Divisi Kamu</span>
+                <h3 className="text-base font-bold text-white">{own.name}</h3>
+                <p className="text-xs text-slate-300">Slide berisi isian divisi ini untuk 2024–2027. Bisa diunduh sebagai PDF dari dalam presentasi.</p>
+              </div>
+              <Link href={deckHref(own)} className="px-5 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold text-xs rounded-xl transition-all whitespace-nowrap shadow-lg shadow-cyan-500/20">Buka Presentasi Divisi →</Link>
+            </>
+          ) : (
+            <p className="text-xs text-slate-300">{loaded ? "Divisi akun ini tidak terdeteksi, jadi presentasi divisi belum bisa dibuka. Hubungi admin untuk menautkan akun ke divisi." : "Memuat divisi…"}</p>
+          )}
         </div>
+      )}
 
-        <Link
-          href={`/presentation/live?deptId=${userDeptId}`}
-          className="px-5 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold text-xs rounded-xl transition-all whitespace-nowrap shadow-lg shadow-cyan-500/20 hover:scale-105"
-        >
-          Buka Slide Divisi Kamu →
-        </Link>
-      </div>
-
-      <div className="w-full border-t border-slate-800 my-2" />
-
-      {/* KLASTER UTAMA PRESENTASI (KLASTERING PINTAR) */}
-      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 w-full">
-        {/* KLASTER 1: COMMERCIAL / SALES */}
-        <Link 
-          href="/presentation/live?cluster=COMMERCIAL"
-          className="bg-slate-900/80 border border-slate-800 hover:border-cyan-500 p-4 rounded-2xl text-left space-y-3 transition-all group shadow-xl flex flex-col justify-between"
-        >
-          <div className="space-y-2">
-            <div className="w-9 h-9 rounded-xl bg-cyan-500/20 text-cyan-400 font-bold flex items-center justify-center text-base">
-              📈
-            </div>
-            <h2 className="text-sm font-bold text-white group-hover:text-cyan-400 transition-colors">
-              Commercial / Sales
-            </h2>
-            <p className="text-[11px] text-slate-400 leading-relaxed">
-              Omzet vs Profit, pipeline customer, & RGT Roadmap.
-            </p>
-          </div>
-          <span className="inline-block text-[11px] font-mono text-cyan-400 font-bold pt-2">
-            Buka Deck →
-          </span>
-        </Link>
-
-        {/* KLASTER 2: DIGITAL MARKETING */}
-        <Link 
-          href="/presentation/live?cluster=DIGITAL_MARKETING"
-          className="bg-slate-900/80 border border-slate-800 hover:border-blue-500 p-4 rounded-2xl text-left space-y-3 transition-all group shadow-xl flex flex-col justify-between"
-        >
-          <div className="space-y-2">
-            <div className="w-9 h-9 rounded-xl bg-blue-500/20 text-blue-400 font-bold flex items-center justify-center text-base">
-              🎯
-            </div>
-            <h2 className="text-sm font-bold text-white group-hover:text-blue-400 transition-colors">
-              Digital Marketing
-            </h2>
-            <p className="text-[11px] text-slate-400 leading-relaxed">
-              Campaign reach, lead generation, & digital footprint.
-            </p>
-          </div>
-          <span className="inline-block text-[11px] font-mono text-blue-400 font-bold pt-2">
-            Buka Deck →
-          </span>
-        </Link>
-
-        {/* KLASTER 3: PRODUCT DEVELOPMENT */}
-        <Link 
-          href="/presentation/live?cluster=PRODUCT_DEVELOPMENT"
-          className="bg-slate-900/80 border border-slate-800 hover:border-cyan-400 p-4 rounded-2xl text-left space-y-3 transition-all group shadow-xl flex flex-col justify-between"
-        >
-          <div className="space-y-2">
-            <div className="w-9 h-9 rounded-xl bg-cyan-400/20 text-cyan-300 font-bold flex items-center justify-center text-base">
-              🚀
-            </div>
-            <h2 className="text-sm font-bold text-white group-hover:text-cyan-300 transition-colors">
-              Product Development
-            </h2>
-            <p className="text-[11px] text-slate-400 leading-relaxed">
-              R&D pipeline, product lifecycle, & innovation metrics.
-            </p>
-          </div>
-          <span className="inline-block text-[11px] font-mono text-cyan-300 font-bold pt-2">
-            Buka Deck →
-          </span>
-        </Link>
-
-        {/* KLASTER 4: FINANCIAL & TAX */}
-        <Link 
-          href="/presentation/live?cluster=FINANCIAL"
-          className="bg-slate-900/80 border border-slate-800 hover:border-emerald-500 p-4 rounded-2xl text-left space-y-3 transition-all group shadow-xl flex flex-col justify-between"
-        >
-          <div className="space-y-2">
-            <div className="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 font-bold flex items-center justify-center text-base">
-              💰
-            </div>
-            <h2 className="text-sm font-bold text-white group-hover:text-emerald-400 transition-colors">
-              Financial & Tax
-            </h2>
-            <p className="text-[11px] text-slate-400 leading-relaxed">
-              Cash flow, AP/AR, Coretax, & anggaran operasional.
-            </p>
-          </div>
-          <span className="inline-block text-[11px] font-mono text-emerald-400 font-bold pt-2">
-            Buka Deck →
-          </span>
-        </Link>
-
-        {/* KLASTER 5: OPERATIONAL & HOSPITALITY */}
-        <Link 
-          href="/presentation/live?cluster=OPERATIONAL_HOSPITALITY"
-          className="bg-slate-900/80 border border-slate-800 hover:border-blue-400 p-4 rounded-2xl text-left space-y-3 transition-all group shadow-xl flex flex-col justify-between"
-        >
-          <div className="space-y-2">
-            <div className="w-9 h-9 rounded-xl bg-blue-400/20 text-blue-300 font-bold flex items-center justify-center text-base">
-              ⚙️
-            </div>
-            <h2 className="text-sm font-bold text-white group-hover:text-blue-300 transition-colors">
-              Operational & Logistics
-            </h2>
-            <p className="text-[11px] text-slate-400 leading-relaxed">
-              SLA, OTD, efisiensi gudang, & kepatuhan SOP cabang.
-            </p>
-          </div>
-          <span className="inline-block text-[11px] font-mono text-blue-300 font-bold pt-2">
-            Buka Deck →
-          </span>
-        </Link>
-      </div>
+      {isSuper && (
+        <div className="w-full space-y-4 text-left">
+          {groups.map((g) => { const t = TONE[g.id]; return (
+            <div key={g.id} className={`bg-slate-900/80 border border-slate-800 ${t.border} p-4 rounded-2xl transition-all shadow-xl`}>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-slate-800 flex items-center justify-center text-base">{t.icon}</div>
+                  <div>
+                    <h2 className={`text-sm font-bold ${t.text}`}>{CLUSTERS[g.id].label}</h2>
+                    <p className="text-[11px] text-slate-400">{NOTE[g.id]}</p>
+                  </div>
+                </div>
+                {g.depts.length > 1 && <Link href={`/presentation/live?cluster=${g.id}`} className="text-[11px] font-mono font-bold text-slate-300 hover:text-white px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl">Deck gabungan klaster →</Link>}
+              </div>
+              <div className="flex flex-wrap gap-2 mt-3">
+                {g.depts.map((d) => <Link key={d.id} href={deckHref(d)} className="text-xs text-slate-200 px-3 py-1.5 bg-slate-800 hover:bg-cyan-500 hover:text-slate-950 border border-slate-700 rounded-xl transition">{d.name}</Link>)}
+              </div>
+            </div>); })}
+          {loaded && !groups.length && <p className="text-xs text-slate-400 text-center">Daftar divisi belum termuat.</p>}
+        </div>
+      )}
     </div>
   );
 }

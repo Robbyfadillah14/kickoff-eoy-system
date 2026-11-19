@@ -1,10 +1,8 @@
 "use client";
-import Link from "next/navigation"; // Catatan: pastikan Link tetap dari "next/link"
 import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
 import "./globals.css";
 
-// Fix import Link yang benar untuk Next.js
 import NextLink from "next/link";
 
 export default function RootLayout({ children }) {
@@ -28,8 +26,8 @@ export default function RootLayout({ children }) {
   }, [pathname]);
 
   const isAdmin = userRole === "SUPER_ADMIN";
-  const isManager = userRole === "DEPARTMENT_MANAGER";
-  const canAccessPresentation = isAdmin || isManager;
+  // semua akun yang sudah login boleh membuka Presentasi (akun divisi hanya melihat divisinya sendiri di halaman hub)
+  const canAccessPresentation = !!userRole;
 
   return (
     <html lang="id">
@@ -64,7 +62,7 @@ export default function RootLayout({ children }) {
                   Dashboard
                 </NextLink>
 
-                {/* MENU PRESENTASI HANYA UNTUK SUPER ADMIN & MANAGER */}
+                {/* MENU PRESENTASI UNTUK SEMUA AKUN LOGIN */}
                 {canAccessPresentation && (
                   <NextLink 
                     href="/presentation" 
