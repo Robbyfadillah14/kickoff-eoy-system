@@ -100,7 +100,7 @@ export function DashboardSlide({ title, plantName, latest, scores, cur, delta, r
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 24, flex: "none" }}>
         <div style={{ minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, letterSpacing: 3, fontWeight: 800, color: C.teal, textTransform: "uppercase" }}><span style={{ width: 22, height: 3, borderRadius: 99, background: C.teal }} />{plantName || "Unit"} · {latest ?? "—"}{latest ? ` · ${phaseOf(latest)?.label}` : ""}</div>
-          <h2 style={{ margin: "6px 0 0", fontSize: 38, lineHeight: 1.05, fontWeight: 850, letterSpacing: -1 }}>{title}</h2>
+          <h2 style={{ margin: "6px 0 0", fontSize: String(title).length > 30 ? 30 : 38, lineHeight: 1.05, fontWeight: 850, letterSpacing: -1 }}>{title}</h2>
         </div>
         {cur && cur.total > 0 && <div style={{ fontSize: 16, lineHeight: 1.35, color: BRAND.muted, maxWidth: 520, textAlign: "right" }}>{cur.ok} dari {cur.total} indikator bertarget tercapai di {latest}{delta == null ? "" : `, ${delta >= 0 ? "naik" : "turun"} ${Math.abs(delta).toFixed(1)} poin dibanding ${latest - 1}`}. {filledNote}</div>}
       </div>
@@ -131,7 +131,7 @@ export function DashboardSlide({ title, plantName, latest, scores, cur, delta, r
         <Panel title="Perlu perhatian" icon="alert" color={C.teal} tag={`${latest}`}>
           <div style={{ display: "flex", gap: 12, flex: 1, minHeight: 0 }}>
             <WhiteBox big={attention.length} small="indikator di bawah target" color={attention.length ? "#c2410c" : "#15803d"} />
-            <WhiteBox big={worst ? clipTxt(worst.shown, 9) : "✓"} small={worst ? clipTxt(`${worst.label}${worst.target ? ` (target ${worst.target})` : ""}`, 44) : "semua tercapai"} color="#1f3a5f" />
+            <WhiteBox big={worst ? (/^[\d.,\s]+(%|x)?$/i.test(String(worst.shown).trim()) ? clipTxt(worst.shown, 9) : "Belum") : "✓"} small={worst ? clipTxt(`${worst.label}${worst.target ? ` (target ${worst.target})` : ""}`, 44) : "semua tercapai"} color="#1f3a5f" />
           </div>
         </Panel>
 

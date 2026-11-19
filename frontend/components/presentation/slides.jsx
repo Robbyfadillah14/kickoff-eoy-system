@@ -220,7 +220,7 @@ export function CoverSlide({ eyebrow, title, subtitle, meta = [], accent = BRAND
     <div className="dk-cover" style={{ height: "100%", position: "relative", display: "flex", flexDirection: "column", justifyContent: "center", gap: 22 }}>
       <div aria-hidden style={{ position: "absolute", right: -30, top: 10, fontSize: 330, fontWeight: 900, letterSpacing: -14, lineHeight: 1, color: "transparent", WebkitTextStroke: "2px var(--dk-ghost, rgba(255,255,255,.07))", userSelect: "none" }}>’27</div>
       <Eyebrow color={accent}>{eyebrow}</Eyebrow>
-      <h1 style={{ margin: 0, fontSize: 78, lineHeight: 1.04, fontWeight: 900, letterSpacing: -3, maxWidth: 1100, color: BRAND.text }}>{title}</h1>
+      <h1 style={{ margin: 0, fontSize: String(title).length > 22 ? 64 : 78, lineHeight: 1.06, fontWeight: 900, letterSpacing: -3, maxWidth: 1100, color: BRAND.text }}>{(() => { const m = String(title).match(/^(.*?)\s*(\d{4}\s?[–-]\s?\d{4})$/); return m ? <>{m[1]} <span style={{ whiteSpace: "nowrap" }}>{m[2]}</span></> : title; })()}</h1>
       <div style={{ fontSize: 25, lineHeight: 1.4, color: BRAND.muted, maxWidth: 800 }}>{subtitle}</div>
       <div style={{ display: "flex", gap: 0, marginTop: 18, maxWidth: 900 }}>
         {phases.map(([y, l, c]) => (
@@ -265,8 +265,10 @@ export function JourneySlide({ columns }) {
 }
 
 /** 2027 — outlook & inovasi, per departemen (bukan satu teks campuran) */
-export function FutureSlide({ outlooks, wins = [], risks = [], hint }) {
+const uniq = (arr) => { const seen = new Set(); return arr.map((x) => String(x ?? "").replace(/\s+/g, " ").trim()).filter((x) => { const k = x.toLowerCase(); if (!x || seen.has(k)) return false; seen.add(k); return true; }); };
+export function FutureSlide({ outlooks, wins: winsIn = [], risks: risksIn = [], hint }) {
   const col = phaseColor("Future");
+  const wins = uniq(winsIn), risks = uniq(risksIn);
   return (
     <div>
       <SlideHead eyebrow="Tahun 2027 · Future" title="Harapan & inovasi ke depan" color={col} />
@@ -283,10 +285,10 @@ export function FutureSlide({ outlooks, wins = [], risks = [], hint }) {
         </div>
         {(wins.length || risks.length) ? <div style={{ display: "grid", gap: 14, alignContent: "start" }}>
           <Glass><Eyebrow color={BRAND.emerald}>Peluang</Eyebrow>
-            {wins.length ? <ul style={{ margin: "10px 0 0", paddingLeft: 18, display: "grid", gap: 10, fontSize: 21 }}>{wins.slice(0, 4).map((w, k) => <li key={k}>{w}</li>)}</ul> : <div style={{ color: BRAND.muted, marginTop: 8, fontSize: 14 }}>—</div>}
+            {wins.length ? <ul style={{ margin: "10px 0 0", paddingLeft: 18, display: "grid", gap: 8, fontSize: 18 }}>{wins.slice(0, 3).map((w, k) => <li key={k} style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{w}</li>)}</ul> : <div style={{ color: BRAND.muted, marginTop: 8, fontSize: 14 }}>—</div>}
           </Glass>
           <Glass><Eyebrow color={BRAND.warn}>Tantangan</Eyebrow>
-            {risks.length ? <ul style={{ margin: "10px 0 0", paddingLeft: 18, display: "grid", gap: 10, fontSize: 21 }}>{risks.slice(0, 4).map((w, k) => <li key={k}>{w}</li>)}</ul> : <div style={{ color: BRAND.muted, marginTop: 8, fontSize: 14 }}>—</div>}
+            {risks.length ? <ul style={{ margin: "10px 0 0", paddingLeft: 18, display: "grid", gap: 8, fontSize: 18 }}>{risks.slice(0, 3).map((w, k) => <li key={k} style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{w}</li>)}</ul> : <div style={{ color: BRAND.muted, marginTop: 8, fontSize: 14 }}>—</div>}
           </Glass>
         </div> : null}
       </div>

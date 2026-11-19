@@ -58,7 +58,7 @@ export function DeptMatrixSlide({ dept, matrix, accent, support }) {
 
 /** tabel target–aktual dari upload Excel (per departemen, tahun terbaru yang punya baris) */
 function ExcelSlide({ dept, year, items, accent }) {
-  const rows = items.map((p) => ({ ...p, t: toNum(p.target), a: toNum(p.actual) })).map((p) => ({ ...p, pct: p.t > 0 ? (p.a / p.t) * 100 : null }));
+  const rows = items.map((p) => ({ ...p, t: toNum(p.target), a: toNum(p.actual) })).filter((p) => p.t !== 0 || p.a !== 0 || txt(p.note)).map((p) => ({ ...p, pct: p.t > 0 ? (p.a / p.t) * 100 : null }));
   const unit = (v) => v.toLocaleString("id-ID", { maximumFractionDigits: 2 });
   return (
     <div>
