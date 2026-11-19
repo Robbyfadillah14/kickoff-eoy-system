@@ -31,6 +31,11 @@ export const Pill = ({ pct }) => {
   return <span style={{ fontSize: 12, fontWeight: 700, color: s.color, background: s.color + "1f", border: `1px solid ${s.color}55`, borderRadius: 99, padding: "3px 10px" }}>{s.label}</span>;
 };
 
+/** teks persen yang aman untuk layout: nilai sangat besar ditulis "999%+" (nilai asli tetap di aria-label / tooltip) */
+export const pctText = (v, d = 1) => (v == null ? "—" : v >= 1000 ? "999%+" : `${v.toFixed(d)}%`);
+/** ukuran font menyesuaikan panjang teks agar tidak terpotong/membungkus */
+export const fitSize = (text, big = 72, min = 40) => { const n = String(text).length; return n <= 6 ? big : n <= 8 ? Math.round(big * 0.78) : n <= 10 ? Math.round(big * 0.6) : min; };
+
 export function ArcGauge({ pct, size = 190, color }) {
   const v = Math.max(0, Math.min(130, pct ?? 0));
   const s = statusOf(pct); const c = color || s.color;
@@ -42,7 +47,7 @@ export function ArcGauge({ pct, size = 190, color }) {
         <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={BRAND.line} strokeWidth="14" strokeLinecap="round" strokeDasharray={`${circ} 999`} />
         {pct != null && <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={c} strokeWidth="14" strokeLinecap="round" strokeDasharray={`${fill} 999`} />}
       </g>
-      <text x="50%" y="52%" textAnchor="middle" fill={BRAND.text} fontSize={size / 5.4} fontWeight="800">{pct == null ? "—" : `${pct.toFixed(1)}%`}</text>
+      <text x="50%" y="52%" textAnchor="middle" fill={BRAND.text} fontSize={pctText(pct).length > 6 ? size / 6.4 : size / 5.4} fontWeight="800">{pctText(pct)}</text>
       <text x="50%" y="66%" textAnchor="middle" fill={BRAND.muted} fontSize="12">capaian</text>
     </svg>
   );
@@ -50,9 +55,9 @@ export function ArcGauge({ pct, size = 190, color }) {
 
 /** bar per tahun; tahun tanpa data tampil sebagai batang kosong bergaris putus (bukan 0) */
 export function YearBars({ rows, target = 100, height = 400 }) {
-  const max = Math.max(110, ...rows.map((r) => r.value ?? 0));
+  const max = Math.min(200, Math.max(110, ...rows.map((r) => r.value ?? 0))); // batang dipotong di 200% agar tidak menggepengkan tahun lain
   const W = 1000, bw = 130, gap = (W - bw * rows.length) / (rows.length + 1), base = height - 44;
-  const y = (v) => base - (v / max) * (base - 16);
+  const y = (v) => base - (Math.min(v, max) / max) * (base - 44); // sisakan ruang di atas untuk label nilai
   return (
     <svg width={W} height={height} viewBox={`0 0 ${W} ${height}`}>
       <line x1="0" x2={W} y1={y(target)} y2={y(target)} stroke={BRAND.muted} strokeDasharray="4 5" />
@@ -64,7 +69,7 @@ export function YearBars({ rows, target = 100, height = 400 }) {
             {r.value == null
               ? <rect x={x} y={y(target * 0.35)} width={bw} height={base - y(target * 0.35)} rx="10" fill="none" stroke={BRAND.line} strokeDasharray="5 5" />
               : <rect x={x} y={y(r.value)} width={bw} height={base - y(r.value)} rx="10" fill={col} opacity="0.9" />}
-            <text x={x + bw / 2} y={r.value == null ? base - 10 : y(r.value) - 8} textAnchor="middle" fill={BRAND.text} fontSize="20" fontWeight="800">{r.value == null ? "n/a" : `${r.value.toFixed(1)}%`}</text>
+            <text x={x + bw / 2} y={r.value == null ? base - 10 : y(r.value) - 8} textAnchor="middle" fill={BRAND.text} fontSize="20" fontWeight="800">{r.value == null ? "n/a" : pctText(r.value)}</text>
             <text x={x + bw / 2} y={height - 22} textAnchor="middle" fill={BRAND.text} fontSize="18" fontWeight="700">{r.year}</text>
             <text x={x + bw / 2} y={height - 6} textAnchor="middle" fill={col} fontSize="11" letterSpacing="2">{String(r.phase || "").toUpperCase()}</text>
           </g>

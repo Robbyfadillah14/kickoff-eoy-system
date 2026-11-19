@@ -1,10 +1,29 @@
 "use client";
 import React, { useMemo } from "react";
 import DeckShell from "./DeckShell.jsx";
-import { CoverSlide, SlideHead, Glass, Eyebrow, ArcGauge, YearBars, Pill, Empty, JourneySlide, FutureSlide } from "./slides.jsx";
-import { buildClusterData, collectByDept, toNum, toPct, phaseOf, BRAND, phaseColor, statusOf } from "../../lib/presentation/index.js";
+import { CoverSlide, SlideHead, Glass, Eyebrow, ArcGauge, YearBars, Pill, Empty, JourneySlide, FutureSlide, pctText, fitSize } from "./slides.jsx";
+import { buildClusterData, collectByDept, toNum, toPct, phaseOf, BRAND, phaseColor, statusOf, isEmptyValue } from "../../lib/presentation/index.js";
 
 const ACTUAL_YEARS = [2024, 2025, 2026];
+const OWN_RGT = { 2024: "rgtRun", 2025: "rgtGrow", 2026: "rgtTransform" };
+const txt = (v) => (isEmptyValue(v) ? null : String(v).trim());
+const cut = (t, n) => (t && t.length > n ? t.slice(0, n - 1).trimEnd() + "…" : t);
+const numOnly = (v) => (/^-?[\d.,\s]+$/.test(String(v ?? "").trim()) && /\d/.test(String(v)) ? v : "");
+
+/** produk dari semua baris sales, digabung per nama. lalu = laluVal|totalQty ; berjalan = jalanVal|actualVal|category (hanya bila angka) */
+export function productsOf(metrics = {}) {
+  const perf = Array.isArray(metrics.salesPerformances) ? metrics.salesPerformances : [];
+  const map = new Map();
+  for (const sp of perf) for (const p of Array.isArray(sp?.topProducts) ? sp.topProducts : []) {
+    const name = txt(p?.productName); if (!name) continue;
+    const lalu = toNum(p.laluVal ?? p.totalQty);
+    const jalan = toNum(!isEmptyValue(p.jalanVal) ? p.jalanVal : !isEmptyValue(p.actualVal) ? p.actualVal : numOnly(p.category));
+    if (!lalu && !jalan) continue;
+    const k = name.toLowerCase(); const cur = map.get(k) || { name, lalu: 0, jalan: 0 };
+    cur.lalu += lalu; cur.jalan += jalan; map.set(k, cur);
+  }
+  return [...map.values()].map((r) => ({ ...r, growth: r.lalu > 0 ? ((r.jalan - r.lalu) / r.lalu) * 100 : null })).sort((a, b) => b.jalan - a.jalan);
+}
 const OUTLOOK_KEYS = ["strategicOutlook2027", "outlook2027", "futureOutlook", "generalNotes"];
 
 const asList = (v) => (Array.isArray(v) ? v : v ? [v] : []).map((x) => (typeof x === "string" ? x : x?.title || x?.text || "")).filter(Boolean);
@@ -18,6 +37,47 @@ export function achievementOf(metrics = {}) {
   const raw = metrics.targetAchievedPct;
   if (raw === undefined || raw === null || raw === "") return null;
   return toPct(raw);
+}
+
+function ProductsSlide({ year, rows }) {
+  const top = rows.slice(0, 8);
+  const max = Math.max(1, ...top.flatMap((r) => [r.lalu, r.jalan]));
+  const fmt = (v) => v.toLocaleString("id-ID", { maximumFractionDigits: 0 });
+  return (
+    <div>
+      <SlideHead eyebrow={`Top produk ${year}`} title="Penjualan produk: tahun lalu vs berjalan"
+        right={<span style={{ fontSize: 12, color: BRAND.muted }}><span style={{ color: BRAND.muted }}>■</span> {year - 1} · <span style={{ color: BRAND.cyan }}>■</span> {year}</span>} />
+      <div style={{ display: "grid", gap: 14 }}>
+        {top.map((r) => { const g = r.growth; const col = g == null ? BRAND.muted : g >= 0 ? BRAND.emerald : BRAND.bad; return (
+          <div key={r.name} style={{ display: "grid", gridTemplateColumns: "230px 1fr 170px", gap: 18, alignItems: "center", fontSize: 19 }}>
+            <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 600 }}>{r.name}</div>
+            <div style={{ display: "grid", gap: 5 }}>
+              <div style={{ height: 11, background: BRAND.line, borderRadius: 99, overflow: "hidden" }}><div style={{ width: `${(r.lalu / max) * 100}%`, height: "100%", background: BRAND.muted, opacity: 0.7 }} /></div>
+              <div style={{ height: 11, background: BRAND.line, borderRadius: 99, overflow: "hidden" }}><div style={{ width: `${(r.jalan / max) * 100}%`, height: "100%", background: BRAND.cyan }} /></div>
+            </div>
+            <div style={{ textAlign: "right", fontWeight: 800, color: col, fontSize: 17 }}>{g == null ? "baru" : Math.abs(g) >= 1000 ? `${g >= 0 ? "+" : "−"}>999%` : `${g >= 0 ? "+" : "−"}${Math.round(Math.abs(g))}%`}<div style={{ fontSize: 11, color: BRAND.muted, fontWeight: 400 }}>{fmt(r.lalu)} → {fmt(r.jalan)}</div></div>
+          </div>); })}
+        {rows.length > 8 && <div style={{ color: BRAND.muted, fontSize: 13 }}>+{rows.length - 8} produk lain</div>}
+      </div>
+    </div>
+  );
+}
+
+function SupportSlide({ columns }) {
+  return (
+    <div>
+      <SlideHead eyebrow="Sales support" title="Operasional pendukung per tahun" />
+      <div style={{ display: "grid", gridTemplateColumns: `repeat(${columns.length}, 1fr)`, gap: 18 }}>
+        {columns.map((c) => { const col = phaseColor(c.phase); return (
+          <Glass key={c.year} accent={col} style={{ minHeight: 430 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}><Eyebrow color={col}>{c.phase}</Eyebrow><span style={{ color: BRAND.muted, fontSize: 13 }}>{c.year}</span></div>
+            {c.items.length
+              ? <ul style={{ margin: "16px 0 0", padding: 0, listStyle: "none", display: "grid", gap: 16, fontSize: 19, lineHeight: 1.45 }}>{c.items.map((t, k) => <li key={k} style={{ display: "flex", gap: 10 }}><span style={{ color: col }}>●</span><span>{t}</span></li>)}</ul>
+              : <div style={{ marginTop: 16 }}><Empty hint="Belum diisi di form Sales Support tahun ini." /></div>}
+          </Glass>); })}
+      </div>
+    </div>
+  );
 }
 
 /**
@@ -46,15 +106,40 @@ export function buildCommercialSlides(data, { mode = "OMZET", plantName = "" } =
     const delta = latestVal != null && prev != null ? latestVal - prev : null;
     const perf = latest ? (Array.isArray(y[latest].metrics.salesPerformances) ? y[latest].metrics.salesPerformances : []) : [];
     const ranked = perf.map((p) => ({ name: p.salesName || "—", t: toNum(p.targetVal), a: toNum(p.actualVal), note: p.note })).filter((p) => p.t > 0).map((p) => ({ ...p, pct: (p.a / p.t) * 100 })).sort((a, b) => b.pct - a.pct);
-    const firstText = (yr, k) => { for (const r of y[yr].reports) if (r?.[k] && String(r[k]).trim()) return String(r[k]).trim(); return null; };
-    const journey = ACTUAL_YEARS.map((yr) => ({ year: yr, phase: phaseOf(yr)?.phase, items: ["rgtRun", "rgtGrow", "rgtTransform"].map((k) => firstText(yr, k)).filter(Boolean).filter((v, i, a) => a.indexOf(v) === i) }));
-    // setiap fase menonjolkan RGT miliknya sendiri
-    const own = { 2024: "rgtRun", 2025: "rgtGrow", 2026: "rgtTransform" };
-    journey.forEach((c) => { const t = firstText(c.year, own[c.year]); c.items = t ? [t, ...c.items.filter((x) => x !== t)] : c.items; });
+    const firstText = (yr, k) => { for (const r of y[yr].reports) if (txt(r?.[k])) return txt(r[k]); return null; };
+    // setiap kolom = RGT miliknya sendiri + isian form tahun itu (inovasi, catatan). Tidak lagi mencampur RGT fase lain.
+    const journey = ACTUAL_YEARS.map((yr) => {
+      const m = y[yr].metrics;
+      return { year: yr, phase: phaseOf(yr)?.phase, items: [
+        cut(firstText(yr, OWN_RGT[yr]), 120),
+        txt(m.branchInnovations) && `Inovasi: ${cut(txt(m.branchInnovations), 110)}`,
+        txt(m.generalNotes) && `Catatan: ${cut(txt(m.generalNotes), 110)}`,
+      ].filter(Boolean) };
+    });
+    // sales support per tahun
+    const support = ACTUAL_YEARS.map((yr) => {
+      const m = y[yr].metrics;
+      return { year: yr, phase: phaseOf(yr)?.phase, items: [
+        txt(m.salesSupportPo) && `Input & verifikasi PO: ${cut(txt(m.salesSupportPo), 100)}`,
+        txt(m.salesSupportCoord) && `Koordinasi DO & piutang: ${cut(txt(m.salesSupportCoord), 100)}`,
+        txt(m.salesSupportEvaluation) && `Evaluasi: ${cut(txt(m.salesSupportEvaluation), 110)}`,
+      ].filter(Boolean) };
+    });
+    // top produk: tahun terbaru yang punya data produk
+    const prodYear = [...ACTUAL_YEARS].reverse().find((yr) => productsOf(y[yr].metrics).length) ?? null;
+    const products = prodYear ? productsOf(y[prodYear].metrics) : [];
     const f = y[2027];
-    const outlooks = collectByDept(f, OUTLOOK_KEYS);
+    let outlooks = collectByDept(f, OUTLOOK_KEYS);
+    if (!outlooks.length) {
+      // form Sales menulis "Strategic Outlook & Issue {tahun+1}" di laporan tahun berjalan -> outlook 2027 ada di laporan 2026
+      for (const yr of [...ACTUAL_YEARS].reverse()) {
+        const hit = collectByDept(y[yr], ["strategicOutlook2027"]);
+        if (hit.length) { outlooks = hit.map((o) => ({ ...o, name: `${o.name} · dari laporan ${yr}` })); break; }
+      }
+    }
     const wins = f.reports.flatMap((r) => asList(r.opportunities));
     const risks = f.reports.flatMap((r) => asList(r.challenges));
+    const deltaText = delta == null ? "—" : Math.abs(delta) >= 1000 ? `${delta > 0 ? "+" : "−"}999 pt+` : `${delta >= 0 ? "+" : ""}${delta.toFixed(1)} pt`;
     const filled = y[latest ?? 2026]?.filled?.length ?? 0, total = data.completeness[latest ?? 2026]?.total ?? 0;
 
     return [
@@ -65,7 +150,7 @@ export function buildCommercialSlides(data, { mode = "OMZET", plantName = "" } =
           {latest == null ? <Empty hint="Belum ada laporan Commercial 2024–2026 yang terisi untuk plant ini." /> : (
             <div style={{ display: "grid", gridTemplateColumns: "340px 1fr 1fr", gap: 22, alignItems: "stretch" }}>
               <Glass style={{ display: "grid", placeItems: "center" }}><ArcGauge pct={latestVal} size={260} /></Glass>
-              <Glass><Eyebrow>Vs tahun lalu</Eyebrow><div style={{ fontSize: 72, fontWeight: 800, marginTop: 18, color: delta == null ? BRAND.muted : delta >= 0 ? BRAND.emerald : BRAND.bad }}>{delta == null ? "—" : `${delta >= 0 ? "+" : ""}${delta.toFixed(1)} pt`}</div><div style={{ color: BRAND.muted, fontSize: 17, marginTop: 8 }}>{delta == null ? "Tahun pembanding belum terisi" : `dibanding ${latest - 1}`}</div></Glass>
+              <Glass><Eyebrow>Vs tahun lalu</Eyebrow><div style={{ fontSize: fitSize(deltaText), fontWeight: 800, marginTop: 18, whiteSpace: "nowrap", color: delta == null ? BRAND.muted : delta >= 0 ? BRAND.emerald : BRAND.bad }}>{deltaText}</div><div style={{ color: BRAND.muted, fontSize: 17, marginTop: 8 }}>{delta == null ? "Tahun pembanding belum terisi" : `dibanding ${latest - 1}`}</div></Glass>
               <Glass><Eyebrow>Kelengkapan data</Eyebrow><div style={{ fontSize: 72, fontWeight: 800, marginTop: 18 }}>{filled}/{total}</div><div style={{ color: BRAND.muted, fontSize: 17, marginTop: 8 }}>departemen Commercial sudah mengisi {latest}</div></Glass>
             </div>)}
         </div>) },
@@ -83,11 +168,13 @@ export function buildCommercialSlides(data, { mode = "OMZET", plantName = "" } =
                 <div key={p.name} style={{ display: "grid", gridTemplateColumns: "300px 1fr 110px", alignItems: "center", gap: 20, fontSize: 22 }}>
                   <div style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</div>
                   <div style={{ height: 22, background: BRAND.line, borderRadius: 99, overflow: "hidden" }}><div style={{ width: `${Math.min(100, p.pct)}%`, height: "100%", background: s.color, borderRadius: 99 }} /></div>
-                  <div style={{ textAlign: "right", fontWeight: 700, color: s.color }}>{p.pct.toFixed(1)}%</div>
+                  <div style={{ textAlign: "right", fontWeight: 700, color: s.color }}>{pctText(p.pct)}</div>
                 </div>); })}
             </div>)}
         </div>) },
+      ...(products.length ? [{ id: "products", label: "Top produk", node: <ProductsSlide year={prodYear} rows={products} /> }] : []),
       { id: "journey", label: "Perjalanan", node: <JourneySlide columns={journey} /> },
+      ...(support.some((c) => c.items.length) ? [{ id: "support", label: "Sales support", node: <SupportSlide columns={support} /> }] : []),
       { id: "future", label: "2027", node: <FutureSlide outlooks={outlooks} wins={wins} risks={risks} hint={data.completeness[2027]?.missing?.length ? `Belum mengisi 2027: ${data.completeness[2027].missing.join(", ")}` : undefined} /> },
     ];
   }

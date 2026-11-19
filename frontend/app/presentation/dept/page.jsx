@@ -9,7 +9,7 @@ import { asList, pickUserDept } from "../../../lib/reportForm";
 import DeptDeck from "../../../components/presentation/DeptDeck";
 
 function Screen({ children }) {
-  return <div className="h-screen bg-slate-950 text-slate-400 text-sm flex items-center justify-center p-6 text-center">{children}</div>;
+  return <div className="fixed inset-0 z-[60] bg-slate-950 text-slate-400 text-sm flex items-center justify-center p-6 text-center">{children}</div>;
 }
 
 function DeptContent() {
@@ -74,7 +74,7 @@ function DeptContent() {
   if (!user) return <Screen>Memuat presentasi…</Screen>;
 
   return (
-    <div className="h-screen bg-slate-950 text-white flex flex-col font-sans">
+    <div className="fixed inset-0 z-[60] bg-slate-950 text-white flex flex-col font-sans">
       <div className="flex flex-wrap items-center gap-2 px-3 py-2 border-b border-slate-800 bg-slate-900/90">
         <Link href="/dashboard" className="px-3 py-1.5 bg-slate-800 border border-slate-700 hover:border-cyan-500/50 text-xs text-slate-300 hover:text-cyan-400 rounded-xl transition">← Dashboard</Link>
         {dept && (
