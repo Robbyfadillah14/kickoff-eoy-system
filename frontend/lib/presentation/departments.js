@@ -23,4 +23,5 @@ export const DEPARTMENTS = [
   { code: "LOG_WH",   name: "Logistic & Warehouse",   short: "Logistic",     cluster: "OPERATIONAL_HOSPITALITY", feeds: ["OPERATIONAL_HOSPITALITY"],                    form: "LogisticWarehouseForm" },
   { code: "ADM_LOG",  name: "Admin Logistic",         short: "Admin Log",    cluster: "OPERATIONAL_HOSPITALITY", feeds: ["OPERATIONAL_HOSPITALITY"],                    form: "AdminLogisticForm" },
   { code: "HR_MR",    name: "HR & MR",                short: "HR & MR",      cluster: "OPERATIONAL_HOSPITALITY", feeds: ["OPERATIONAL_HOSPITALITY"],                    form: "HrMrForm" },
+  { code: "OPS_DIR",  name: "Direktur Operasional",   short: "Direktur Ops", cluster: "OPERATIONAL_HOSPITALITY", feeds: ["OPERATIONAL_HOSPITALITY"],                    form: "OperationalDirectorForm" },
 ];

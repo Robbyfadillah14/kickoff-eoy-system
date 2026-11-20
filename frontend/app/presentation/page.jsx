@@ -4,7 +4,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { apiFetch } from "../../lib/api";
-import { CLUSTERS, DEPARTMENTS, resolveDepartment } from "../../lib/presentation";
+import { CLUSTERS, DEPARTMENTS, resolveDepartment, isDirector, allowedClusterIds } from "../../lib/presentation";
 import { asList, pickUserDept } from "../../lib/reportForm";
 
 const TONE = {
@@ -36,15 +36,17 @@ export default function PresentationIndexPage() {
   }, []);
 
   const isSuper = user?.role === "SUPER_ADMIN";
+  const own = useMemo(() => (user && !isSuper ? pickUserDept(user, departments) : null), [user, isSuper, departments]);
+  const director = !!user && !isSuper && isDirector(user, own?.name);
+  const seeAll = isSuper || director; // direktur: ringkasan Financial & Operational saja
   const plantQ = !isSuper && user?.plantId ? `&plantId=${user.plantId}` : "";
   const deckHref = (d) => `/presentation/dept?deptId=${d.id}${plantQ}`;
 
   const known = useMemo(() => departments.filter((d) => resolveDepartment(d.name)), [departments]);
-  const own = useMemo(() => (user && !isSuper ? pickUserDept(user, departments) : null), [user, isSuper, departments]);
-  const groups = useMemo(() => Object.keys(CLUSTERS).map((c) => ({
+  const groups = useMemo(() => (isSuper ? Object.keys(CLUSTERS) : allowedClusterIds(user, own?.name)).map((c) => ({
     id: c,
     depts: DEPARTMENTS.filter((r) => r.cluster === c).map((r) => known.find((d) => resolveDepartment(d.name)?.code === r.code)).filter(Boolean),
-  })).filter((g) => g.depts.length), [known]);
+  })).filter((g) => g.depts.length), [known, isSuper, user, own]);
 
   if (!user) return <div className="min-h-screen bg-slate-950 p-6 text-slate-400 text-sm">Memuat presentasi…</div>;
 
@@ -52,7 +54,7 @@ export default function PresentationIndexPage() {
     <div className="min-h-[85vh] flex flex-col items-center justify-center text-center space-y-6 max-w-5xl mx-auto px-4 py-8">
       <div className="space-y-2">
         <span className="text-xs font-mono text-cyan-400 bg-cyan-500/10 px-3 py-1 rounded-full border border-cyan-500/30">PT Ekasurya Inout Indonesia — Presentation Mode</span>
-        <h1 className="text-3xl font-black text-white tracking-wide">{isSuper ? "Pilih Presentasi" : "Presentasi Divisi Kamu"}</h1>
+        <h1 className="text-3xl font-black text-white tracking-wide">{seeAll ? "Pilih Presentasi" : "Presentasi Divisi Kamu"}</h1>
         <p className="text-xs text-slate-400 font-mono max-w-xl mx-auto">RUN 2024 • GROW 2025 • TRANSFORM 2026 • FUTURE 2027 — dari data yang sudah tersimpan di form.</p>
       </div>
 
@@ -73,7 +75,7 @@ export default function PresentationIndexPage() {
         </div>
       )}
 
-      {isSuper && (
+      {seeAll && (
         <div className="w-full space-y-4 text-left">
           {groups.map((g) => { const t = TONE[g.id]; return (
             <div key={g.id} className={`bg-slate-900/80 border border-slate-800 ${t.border} p-4 rounded-2xl transition-all shadow-xl`}>

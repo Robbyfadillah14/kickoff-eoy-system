@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { apiFetch } from "../../../lib/api";
-import { CLUSTERS, resolveDepartment, clusterOfDepartment } from "../../../lib/presentation";
+import { CLUSTERS, resolveDepartment, clusterOfDepartment, allowedClusterIds } from "../../../lib/presentation";
 
 import CommercialDeck from "../../../components/presentation/CommercialDeck";
 import { DigitalMarketingDeck, ProductDevelopmentDeck } from "../../../components/presentation/ClusterDeck";
@@ -62,17 +62,26 @@ function LiveContent() {
 
   const deptById = useMemo(() => new Map(departments.map((d) => [d.id, d.name])), [departments]);
 
-  // klaster: ?deptId= (departemen) > ?cluster= > departemen milik user > COMMERCIAL
+  // klaster yang boleh dibuka: superadmin semua; direktur Financial + Operational; lainnya hanya klaster divisinya
+  const ownDeptName = (user?.departmentId && deptById.get(user.departmentId)) || user?.departmentName || user?.department?.name || "";
+  const allowed = useMemo(() => {
+    if (!user) return CLUSTER_IDS;
+    if (isSuper) return CLUSTER_IDS;
+    const a = allowedClusterIds(user, ownDeptName);
+    if (a.length) return a;
+    const own = ownDeptName && clusterOfDepartment(ownDeptName);
+    return own ? [own] : CLUSTER_IDS;
+  }, [user, isSuper, ownDeptName]);
+
+  // klaster: ?deptId= (departemen) > ?cluster= > departemen milik user > klaster pertama yang boleh; hasil selalu dipaksa ke yang diizinkan
   const cluster = useMemo(() => {
-    if (deptIdQ && deptById.get(deptIdQ)) {
-      const c = clusterOfDepartment(deptById.get(deptIdQ));
-      if (c) return c;
-    }
-    if (CLUSTER_IDS.includes(clusterQ)) return clusterQ;
-    if (clusterQ === "OPERATIONAL") return "OPERATIONAL_HOSPITALITY";
-    const own = user?.departmentId && deptById.get(user.departmentId);
-    return (own && clusterOfDepartment(own)) || "COMMERCIAL";
-  }, [deptIdQ, clusterQ, deptById, user]);
+    let c = null;
+    if (deptIdQ && deptById.get(deptIdQ)) c = clusterOfDepartment(deptById.get(deptIdQ));
+    if (!c && CLUSTER_IDS.includes(clusterQ)) c = clusterQ;
+    if (!c && clusterQ === "OPERATIONAL") c = "OPERATIONAL_HOSPITALITY";
+    if (!c) c = (ownDeptName && clusterOfDepartment(ownDeptName)) || "COMMERCIAL";
+    return allowed.includes(c) ? c : allowed[0];
+  }, [deptIdQ, clusterQ, deptById, ownDeptName, allowed]);
 
   const normalized = useMemo(
     () => reports.map((r) => (r.department?.name ? r : { ...r, department: { name: r.departmentName || deptById.get(r.departmentId) || "" } })),
@@ -111,7 +120,7 @@ function LiveContent() {
         <Link href="/presentation" className="px-3 py-1.5 bg-slate-800 border border-slate-700 hover:border-cyan-500/50 text-xs text-slate-300 hover:text-cyan-400 rounded-xl transition">← Hub</Link>
 
         <div className="flex flex-wrap gap-1">
-          {CLUSTER_IDS.map((c) => (
+          {allowed.map((c) => (
             <button key={c} onClick={() => setCluster(c)}
               className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition ${c === cluster ? "bg-cyan-500 text-slate-950 border-cyan-400" : "bg-slate-800 text-slate-300 border-slate-700 hover:text-white"}`}>
               {CLUSTERS[c].label}

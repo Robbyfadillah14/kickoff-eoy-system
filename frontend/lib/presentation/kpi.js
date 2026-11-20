@@ -115,6 +115,17 @@ export const DEPT_KPIS = {
     ],
   },
 };
+DEPT_KPIS.OPS_DIR = {
+  evaluationKey: "executiveSummary",
+  kpis: [
+    { key: "actualEfficiency",    label: "Efisiensi operasional",          kind: "pct", dir: "min", targetKey: "targetEfficiency", targetLabel: "sesuai target" },
+    { key: "costOptimization",    label: "Cost optimization",              kind: "info" },
+    { key: "strategicInitiatives", label: "Inisiatif strategis",           kind: "info" },
+    { key: "supplyChainMetrics",  label: "Supply chain & manajemen stok",  kind: "info" },
+    { key: "keyMilestones",       label: "Key milestones",                 kind: "info" },
+    { key: "riskManagement",      label: "Manajemen risiko & kendala",     kind: "info" },
+  ],
+};
 DEPT_KPIS.ACCT = DEPT_KPIS.TAX = {
   evaluationKey: "taxEvaluation",
   kpis: [
@@ -173,6 +184,7 @@ export function judgeKpi(spec, raw) {
 
   if (spec.kind === "pct") {
     value = pctFromText(text);
+    if (value == null && /^\d+(?:[.,]\d+)?$/.test(text)) value = num(text); // angka polos ("92") dianggap persen
     if (value != null) {
       display = `${fmtNum(value)}%`;
       if (spec.target != null) met = spec.dir === "max" ? value <= spec.target : value >= spec.target;
@@ -199,12 +211,16 @@ export function kpiMatrix(data, deptCode, years = [2024, 2025, 2026, 2027]) {
   let hasData = false;
   const rows = spec.kpis.map((k) => {
     const cells = {};
+    let targetLabel = "";
     for (const y of years) {
       const m = data?.years?.[y]?.byDept?.[deptCode]?.metrics;
-      cells[y] = m ? judgeKpi(k, m[k.key]) : null;
+      let kk = k;
+      if (m && k.targetKey && !isEmptyValue(m[k.targetKey])) { const tv = countFromText(m[k.targetKey]); if (tv != null) kk = { ...k, target: tv, targetLabel: `${k.dir === "max" ? "≤" : "≥"} ${fmtNum(tv)}${k.kind === "pct" ? "%" : ""}` }; }
+      cells[y] = m ? judgeKpi(kk, m[k.key]) : null;
+      if (cells[y] && kk.targetLabel && !targetLabel) targetLabel = kk.targetLabel;
       if (cells[y]) hasData = true;
     }
-    return { key: k.key, label: k.label, targetLabel: k.targetLabel || "", kind: k.kind, cells };
+    return { key: k.key, label: k.label, targetLabel: targetLabel || k.targetLabel || "", kind: k.kind, cells };
   });
   return { rows, hasData };
 }

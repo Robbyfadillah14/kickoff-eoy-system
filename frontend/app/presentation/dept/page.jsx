@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { apiFetch } from "../../../lib/api";
-import { resolveDepartment } from "../../../lib/presentation";
+import { resolveDepartment, clusterOfDepartment, isDirector, canViewCluster } from "../../../lib/presentation";
 import { asList, pickUserDept } from "../../../lib/reportForm";
 import DeptDeck from "../../../components/presentation/DeptDeck";
 
@@ -54,11 +54,16 @@ function DeptContent() {
   const known = useMemo(() => departments.filter((d) => resolveDepartment(d.name)), [departments]);
 
   // non-superadmin dikunci ke divisinya sendiri; superadmin bebas memilih
+  const own = useMemo(() => (user && !isSuper ? pickUserDept(user, departments) : null), [user, isSuper, departments]);
+  const director = !!user && !isSuper && isDirector(user, own?.name);
+  // direktur: boleh memilih divisi di klaster Financial & Operational (bukan Sales); selain itu terkunci ke divisinya
+  const choices = useMemo(() => (isSuper ? known : director ? known.filter((d) => canViewCluster(user, clusterOfDepartment(d.name), own?.name)) : []), [isSuper, director, known, user, own]);
   const dept = useMemo(() => {
     if (!user || !departments.length) return null;
-    if (!isSuper) return pickUserDept(user, departments);
-    return deptById.get(deptQ) || known[0] || null;
-  }, [user, departments, isSuper, deptQ, deptById, known]);
+    if (isSuper) return deptById.get(deptQ) || known[0] || null;
+    if (director) return choices.find((d) => String(d.id) === String(deptQ)) || own || choices[0] || null;
+    return own;
+  }, [user, departments, isSuper, director, deptQ, deptById, known, choices, own]);
 
   const reg = dept ? resolveDepartment(dept.name) : null;
   const normalized = useMemo(
@@ -82,14 +87,16 @@ function DeptContent() {
         )}
         <span className="text-xs text-slate-500 hidden md:inline">Berisi data yang sudah <b>tersimpan</b>. Habis mengubah isian, simpan dulu lalu muat ulang halaman ini.</span>
         <div className="ml-auto flex items-center gap-2">
-          {isSuper ? (
+          {isSuper || director ? (
             <>
               <select value={dept?.id || ""} onChange={(e) => router.replace(`/presentation/dept?deptId=${e.target.value}&plantId=${plantId}`)} className="bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-emerald-400 focus:outline-none">
-                {known.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+                {choices.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
               </select>
-              <select value={plantId} onChange={(e) => setPlantId(e.target.value)} className="bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-cyan-400 focus:outline-none">
-                {plants.map((p) => <option key={p.id} value={p.id}>{p.name || p.code}</option>)}
-              </select>
+              {isSuper ? (
+                <select value={plantId} onChange={(e) => setPlantId(e.target.value)} className="bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-cyan-400 focus:outline-none">
+                  {plants.map((p) => <option key={p.id} value={p.id}>{p.name || p.code}</option>)}
+                </select>
+              ) : <span className="text-xs text-slate-400 px-2">{plantName}</span>}
             </>
           ) : (
             <span className="text-xs text-slate-400 px-2">{dept?.name} · {plantName}</span>
