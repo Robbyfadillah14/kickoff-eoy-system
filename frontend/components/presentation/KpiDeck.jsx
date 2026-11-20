@@ -4,6 +4,7 @@ import DeckShell from "./DeckShell.jsx";
 import { DashboardSlide, PanelsSlide } from "./KpiDashboard.jsx";
 import { CoverSlide, SlideHead, Glass, Eyebrow, ArcGauge, YearBars, Pill, Empty, JourneySlide, FutureSlide, ClosingSlide, TrendSlide, StatTile, ptText, deltaColor, pctText } from "./slides.jsx";
 import { buildClusterData, collectByDept, resolveDepartment, feedersOf, ownersOf, phaseOf, toNum, formatRupiah, BRAND, phaseColor, statusOf, isEmptyValue } from "../../lib/presentation/index.js";
+import { buildHrSlides } from "./HrSlides.jsx";
 import { DEPT_KPIS, OUTLOOK_KEYS, kpiMatrix, scoreOf, excelItems, clip } from "../../lib/presentation/kpi.js";
 
 const ACTUAL_YEARS = [2024, 2025, 2026];
@@ -149,6 +150,7 @@ export function buildKpiSlides(data, cfg, { plantName = "", deptCode = null } = 
     }
     if (m.hasData) deptSlides.push({ id: `d-${d.code}`, label: d.short, node: <DeptMatrixSlide dept={d} matrix={m} accent={cfg.accent} support={!ownCluster(d)} /> });
     if (items.length) deptSlides.push({ id: `x-${d.code}`, label: `${d.short} (Excel)`, node: <ExcelSlide dept={d} year={excelYear} items={items} accent={cfg.accent} /> });
+    if (d.code === "HR_MR") deptSlides.push(...buildHrSlides(data, { accent: cfg.accent }));
   }
 
   // perjalanan: teks evaluasi per departemen + RGT dari laporan
