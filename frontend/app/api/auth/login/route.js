@@ -53,6 +53,10 @@ export async function POST(request) {
     });
   } catch (error) {
     console.error("Error login:", error);
+    // konfigurasi server belum lengkap (mis. AUTH_SECRET kosong): beri petunjuk jelas, tanpa membuka nilai rahasia
+    if (String(error?.message || "").includes("AUTH_SECRET")) {
+      return NextResponse.json({ success: false, error: "Konfigurasi server belum lengkap: AUTH_SECRET belum diatur di Vercel." }, { status: 500 });
+    }
     return NextResponse.json({ success: false, error: "Terjadi kesalahan pada server" }, { status: 500 });
   }
 }
