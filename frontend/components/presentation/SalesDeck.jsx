@@ -121,19 +121,34 @@ function LinkChip({ cur, prev, fromYr }) {
   );
 }
 
+/** daftar ringkas SEMUA item: 1 kolom bila <=3 item, 2 kolom bila lebih (tidak ada "+N lainnya") */
+function MiniList({ items }) {
+  const two = items.length > 3;
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: two ? "1fr 1fr" : "1fr", gap: two ? "2px 14px" : "5px 0" }}>
+      {items.map((x, k) => (
+        <div key={k} title={`${x.name} · ${x.right}`} style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, height: two ? 16 : 22 }}>
+          <span style={{ ...ellipsis, flex: 1, fontSize: two ? 12 : 14, fontWeight: 700, color: SLATE[800] }}>{x.name}</span>
+          <span style={{ flex: "none", fontSize: two ? 12 : 14, fontWeight: 900, color: x.color, whiteSpace: "nowrap" }}>{x.right}</span>
+          {x.delta != null && <span style={{ flex: "none", fontSize: 10, fontWeight: 900, color: x.delta >= 0 ? GREEN : "#DC2626" }}>{x.delta >= 0 ? "▲" : "▼"}</span>}
+        </div>))}
+    </div>
+  );
+}
+
 function YearTimeline({ yearData }) {
   const logs = yearData.filter((d) => d.actual > 0).map((d) => Math.log10(d.actual));
   const lo = logs.length ? Math.min(...logs) : 0, hi = logs.length ? Math.max(...logs) : 1;
-  const size = (v) => (v > 0 && hi > lo ? 112 + ((Math.log10(v) - lo) / (hi - lo)) * 40 : 112);
+  const size = (v) => (v > 0 && hi > lo ? 108 + ((Math.log10(v) - lo) / (hi - lo)) * 32 : 108);
   return (
     <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", gap: 8, padding: "0 20px" }}>
-      <div style={{ position: "relative", display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 20, height: 172, flex: "none" }}>
+      <div style={{ position: "relative", display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 20, height: 156, flex: "none" }}>
         <div style={{ position: "absolute", height: 6, borderRadius: 99, left: "16.66%", right: "16.66%", top: "calc(50% - 3px)", background: `linear-gradient(90deg, ${YEAR_COLORS.join(",")})`, opacity: 0.45 }} />
         {[1, 2].map((k) => (
           <div key={k} style={{ position: "absolute", zIndex: 20, left: `${(k * 100) / 3}%`, top: "50%", transform: "translate(-50%,-50%)" }}><LinkChip cur={yearData[k]} prev={yearData[k - 1]} fromYr={yearData[k - 1].yr} /></div>
         ))}
         {yearData.map((d, i) => {
-          const c = YEAR_COLORS[i], s = size(d.actual), W = s + 20, R = 46, C = 2 * Math.PI * R, v = Math.min(Math.max(d.ach, 0), 100);
+          const c = YEAR_COLORS[i], s = size(d.actual), W = s + 14, R = 46, C = 2 * Math.PI * R, v = Math.min(Math.max(d.ach, 0), 100);
           return (
             <div key={d.yr} style={{ position: "relative", zIndex: 10, display: "grid", placeItems: "center" }}>
               <div style={{ position: "relative", width: W, height: W }}>
@@ -142,7 +157,7 @@ function YearTimeline({ yearData }) {
                   {d.rep && <circle cx="50" cy="50" r={R} fill="none" stroke={c} strokeWidth="5" strokeLinecap="round" strokeDasharray={`${(v / 100) * C} ${C}`} />}
                 </svg>
                 <div style={{ position: "absolute", inset: 10, borderRadius: 999, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 900, lineHeight: 1.15, background: `radial-gradient(circle at 30% 25%, ${c}cc, ${c})`, boxShadow: "0 10px 20px -8px rgba(0,0,0,.45)" }}>
-                  <span style={{ fontSize: 19, padding: "0 4px" }}>{d.rep ? rp(d.actual) : "-"}</span>
+                  <span style={{ fontSize: 17, padding: "0 4px", whiteSpace: "nowrap" }}>{d.rep ? rp(d.actual) : "-"}</span>
                   <span style={{ fontSize: 10, fontWeight: 600, opacity: 0.8 }}>realisasi</span>
                 </div>
               </div>
@@ -172,38 +187,19 @@ function YearTimeline({ yearData }) {
           const prods = [...d.products].sort((a, b) => b.jalan - a.jalan);
           const mx = Math.max(...prods.map((x) => x.jalan), 1);
           return (
-            <div key={d.yr} style={{ ...card, borderTop: `4px solid ${c}`, padding: 16, display: "flex", flexDirection: "column", justifyContent: "space-between", gap: 8, minHeight: 0, overflow: "hidden" }}>
+            <div key={d.yr} style={{ ...card, borderTop: `4px solid ${c}`, padding: "10px 16px 8px", display: "flex", flexDirection: "column", justifyContent: "space-between", gap: 4, minHeight: 0, overflow: "hidden" }}>
               <div>
                 <SectionTitle color={BLUE} right={`${sales.length} personel`}>Tim Sales</SectionTitle>
-                {sales.length ? (
-                  <div style={{ display: "grid", gap: 6 }}>
-                    {sales.slice(0, 3).map((x, k) => (
-                      <div key={k} style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        <span title={x.name} style={{ ...ellipsis, width: 88, fontSize: 14, fontWeight: 700, color: SLATE[800] }}>{x.name}</span>
-                        <Track pct={x.ach} color={x.ach >= 100 ? LIME_D : "#F59E0B"} />
-                        <span style={{ width: 52, textAlign: "right", fontSize: 14, fontWeight: 900, color: x.ach >= 100 ? GREEN : "#d97706" }}>{fmtAch(x.ach)}</span>
-                      </div>))}
-                    {sales.length > 3 && <div style={{ fontSize: 11, color: SLATE[400] }}>+{sales.length - 3} lainnya</div>}
-                  </div>) : <Dash text={d.rep ? "Belum diisi" : "Belum ada laporan"} />}
+                {sales.length ? <MiniList items={sales.map((x) => ({ name: x.name, right: fmtAch(x.ach), color: x.ach >= 100 ? GREEN : "#d97706" }))} /> : <Dash text={d.rep ? "Belum diisi" : "Belum ada laporan"} />}
               </div>
               <div>
                 <SectionTitle color={GREEN} right={`${prods.length} item`}>Produk</SectionTitle>
-                {prods.length ? (
-                  <div style={{ display: "grid", gap: 6 }}>
-                    {prods.slice(0, 3).map((x, k) => (
-                      <div key={k} style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        <span title={x.name} style={{ ...ellipsis, width: 88, fontSize: 14, fontWeight: 700, color: SLATE[800] }}>{x.name}</span>
-                        <Track pct={(x.jalan / mx) * 100} color={c} />
-                        <span style={{ width: 84, textAlign: "right", fontSize: 13, fontWeight: 900, color: SLATE[700], whiteSpace: "nowrap" }}>{rp(x.jalan)}</span>
-                        <DeltaChip cur={x.jalan} prev={x.lalu} />
-                      </div>))}
-                    {prods.length > 3 && <div style={{ fontSize: 11, color: SLATE[400] }}>+{prods.length - 3} lainnya</div>}
-                  </div>) : <Dash text={d.rep ? "Belum diisi" : "Belum ada laporan"} />}
+                {prods.length ? <MiniList items={prods.map((x) => { const dl = pctDelta(x.jalan, x.lalu); return { name: x.name, right: rp(x.jalan), color: SLATE[700], delta: dl }; })} /> : <Dash text={d.rep ? "Belum diisi" : "Belum ada laporan"} />}
               </div>
               <div>
                 <SectionTitle color="#5B6B00">Inovasi</SectionTitle>
                 {d.innovations
-                  ? <div style={{ borderRadius: 12, padding: "8px 12px", fontSize: 14, color: SLATE[700], lineHeight: 1.35, background: `${c}14`, borderLeft: `3px solid ${c}`, ...clamp(3) }}>{d.innovations}</div>
+                  ? <div style={{ borderRadius: 10, padding: "5px 10px", fontSize: 12.5, color: SLATE[700], lineHeight: 1.3, background: `${c}14`, borderLeft: `3px solid ${c}`, ...clamp(2) }} title={d.innovations}>{d.innovations}</div>
                   : <Dash text={d.rep ? "Belum diisi" : "Belum ada laporan"} />}
               </div>
             </div>
@@ -252,7 +248,7 @@ export function buildSalesSlides(data, { mode = "OMZET", plantName = "" } = {}) 
     const note = txt(s.note); if (note && !cell.note.includes(note)) cell.note = cell.note ? `${cell.note} · ${note}` : note;
     matrix[name].cells[yi] = cell; matrix[name].total += a;
   }));
-  const topSales = Object.values(agg).map((s) => ({ ...s, ach: s.target > 0 ? (s.actual / s.target) * 100 : 0 })).sort((a, b) => b.actual - a.actual).slice(0, 6);
+  const topSales = Object.values(agg).map((s) => ({ ...s, ach: s.target > 0 ? (s.actual / s.target) * 100 : 0 })).sort((a, b) => b.actual - a.actual);
   const salesRows = Object.values(matrix).sort((a, b) => b.total - a.total);
 
   const prodAgg = {}; const prodMatrix = {};
@@ -354,9 +350,9 @@ export function buildSalesSlides(data, { mode = "OMZET", plantName = "" } = {}) 
             {topSales.length ? topSales.map((s) => (
               <div key={s.name}>
                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, fontWeight: 700, color: SLATE[800] }}>
-                  <span title={s.name} style={{ ...ellipsis, maxWidth: 130 }}>{s.name}</span><span style={{ color: s.ach >= 100 ? GREEN : "#d97706" }}>{fmtAch(s.ach)}</span>
+                  <span title={s.name} style={{ ...ellipsis, maxWidth: 190 }}>{s.name}</span><span style={{ color: s.ach >= 100 ? GREEN : "#d97706" }}>{fmtAch(s.ach)}</span>
                 </div>
-                <div style={{ display: "flex", marginTop: 4 }}><Track pct={s.ach} color={s.ach >= 100 ? LIME_D : "#F59E0B"} h={8} /></div>
+                <div style={{ display: "flex", marginTop: topSales.length > 7 ? 2 : 4 }}><Track pct={s.ach} color={s.ach >= 100 ? LIME_D : "#F59E0B"} h={topSales.length > 7 ? 6 : 8} /></div>
               </div>)) : <Dash text="Belum ada data sales." />}
           </div>
         </div>
@@ -364,13 +360,13 @@ export function buildSalesSlides(data, { mode = "OMZET", plantName = "" } = {}) 
         <div style={{ ...card, padding: 20, display: "flex", flexDirection: "column", minHeight: 0 }}>
           <div style={{ fontSize: 16, fontWeight: 700, color: NAVY }}>Komposisi produk</div>
           <div style={{ fontSize: 12, color: SLATE[500], marginBottom: 8 }}>Gabungan 2024-2026</div>
-          <div style={{ display: "flex", justifyContent: "center", marginBottom: 12 }}>
-            <div style={{ width: 120, height: 120, borderRadius: 999, background: pieBg, position: "relative" }}><div style={{ position: "absolute", inset: 30, borderRadius: 999, background: "#fff" }} /></div>
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: prodList.length > 6 ? 6 : 12 }}>
+            <div style={{ width: prodList.length > 6 ? 92 : 120, height: prodList.length > 6 ? 92 : 120, borderRadius: 999, background: pieBg, position: "relative" }}><div style={{ position: "absolute", inset: prodList.length > 6 ? 23 : 30, borderRadius: 999, background: "#fff" }} /></div>
           </div>
-          <div style={{ flex: 1, display: "grid", gap: 6, alignContent: "start", minHeight: 0, overflow: "hidden" }}>
-            {topProd.length ? topProd.map((p, i) => (
-              <div key={p.name} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 12 }}>
-                <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}><i style={{ width: 10, height: 10, borderRadius: 99, background: PIE_COLORS[i % 5], flex: "none" }} /><span title={p.name} style={{ ...ellipsis, maxWidth: 90, color: SLATE[700] }}>{p.name}</span></span>
+          <div style={{ flex: 1, display: "grid", gap: prodList.length > 6 ? 2 : 6, alignContent: "start", minHeight: 0, overflow: "hidden" }}>
+            {prodList.length ? prodList.map((p, i) => (
+              <div key={p.name} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: prodList.length > 6 ? 11 : 12 }}>
+                <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}><i style={{ width: 10, height: 10, borderRadius: 99, background: PIE_COLORS[Math.min(i, 4)], flex: "none" }} /><span title={p.name} style={{ ...ellipsis, maxWidth: 110, color: SLATE[700] }}>{p.name}</span></span>
                 <b style={{ color: SLATE[800] }}>{rp(p.val)}</b>
               </div>)) : <div style={{ fontSize: 14, fontStyle: "italic", color: SLATE[400], textAlign: "center" }}>Belum ada data produk.</div>}
           </div>
