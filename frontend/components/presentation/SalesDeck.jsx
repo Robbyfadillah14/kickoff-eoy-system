@@ -57,7 +57,7 @@ const Track = ({ pct, color, h = 10 }) => (
   <div style={{ flex: 1, height: h, borderRadius: 99, background: SLATE[100], overflow: "hidden" }}><div style={{ height: "100%", width: `${Math.max(0, Math.min(100, pct))}%`, background: color, borderRadius: 99 }} /></div>
 );
 
-function MiniRing({ pct, color, size = 68 }) {
+function MiniRing({ pct, color, size = 68, fs = 13 }) {
   const r = 26, c = 2 * Math.PI * r, v = Math.min(Math.max(pct, 0), 100);
   return (
     <div style={{ position: "relative", width: size, height: size, flex: "none" }}>
@@ -65,14 +65,14 @@ function MiniRing({ pct, color, size = 68 }) {
         <circle cx="32" cy="32" r={r} fill="none" stroke={SLATE[200]} strokeWidth="7" />
         <circle cx="32" cy="32" r={r} fill="none" stroke={color} strokeWidth="7" strokeLinecap="round" strokeDasharray={`${(v / 100) * c} ${c}`} />
       </svg>
-      <span style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", fontSize: 13, fontWeight: 900, color }}>{fmtAch(pct)}</span>
+      <span style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", fontSize: fs, fontWeight: 900, color }}>{fmtAch(pct)}</span>
     </div>
   );
 }
 
-function YearColHeaders({ yearData, label, sub }) {
+function YearColHeaders({ yearData, label, sub, idW = 230 }) {
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "230px 1fr 1fr 1fr", gap: 12, flex: "none" }}>
+    <div style={{ display: "grid", gridTemplateColumns: `${idW}px 1fr 1fr 1fr`, gap: 12, flex: "none" }}>
       <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", padding: "0 8px" }}>
         <div style={{ fontSize: 15, fontWeight: 900, color: NAVY, lineHeight: 1.2 }}>{label}</div>
         <div style={{ fontSize: 12, color: SLATE[500] }}>{sub}</div>
@@ -92,16 +92,16 @@ function YearColHeaders({ yearData, label, sub }) {
 const EmptyCell = ({ text = "Belum ada data" }) => (
   <div style={{ borderRadius: 12, border: `1px dashed ${SLATE[300]}`, background: "rgba(248,250,252,.7)", display: "grid", placeItems: "center" }}><span style={{ fontSize: 13, fontStyle: "italic", color: SLATE[400] }}>{text}</span></div>
 );
-function RowIdentity({ name, rank, total, extra }) {
+function RowIdentity({ name, rank, total, extra, compact = false, suffix = "" }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "0 8px 0 4px", minWidth: 0 }}>
+    <div style={{ display: "flex", alignItems: "center", gap: compact ? 8 : 12, padding: "0 8px 0 4px", minWidth: 0 }}>
       <div style={{ position: "relative", flex: "none" }}>
-        <div style={{ width: 48, height: 48, borderRadius: 16, display: "grid", placeItems: "center", fontSize: 20, fontWeight: 900, color: "#fff", background: `linear-gradient(135deg, ${NAVY}, ${BLUE})`, boxShadow: "0 6px 12px -6px rgba(0,0,0,.4)" }}>{(name || "?").trim().charAt(0).toUpperCase()}</div>
+        <div style={{ width: compact ? 32 : 48, height: compact ? 32 : 48, borderRadius: compact ? 11 : 16, display: "grid", placeItems: "center", fontSize: compact ? 15 : 20, fontWeight: 900, color: "#fff", background: `linear-gradient(135deg, ${NAVY}, ${BLUE})`, boxShadow: "0 6px 12px -6px rgba(0,0,0,.4)" }}>{(name || "?").trim().charAt(0).toUpperCase()}</div>
         {rank === 0 && <span style={{ position: "absolute", top: -9, right: -9, fontSize: 15 }}>🏆</span>}
       </div>
       <div style={{ minWidth: 0 }}>
-        <div title={name} style={{ ...ellipsis, fontSize: 17, fontWeight: 900, color: NAVY, lineHeight: 1.2 }}>{name}</div>
-        <div style={{ ...ellipsis, fontSize: 12, color: SLATE[500] }}>Total {rp(total)}</div>
+        <div title={name} style={{ ...ellipsis, fontSize: compact ? 14 : 17, fontWeight: 900, color: NAVY, lineHeight: 1.2 }}>{name}</div>
+        <div style={{ ...ellipsis, fontSize: compact ? 11 : 12, color: SLATE[500] }}>Total {rp(total)}{suffix}</div>
         {extra}
       </div>
     </div>
@@ -215,13 +215,8 @@ function YearTimeline({ yearData }) {
 }
 
 /* ───────── builder slide ───────── */
-/** bagi daftar jadi halaman seimbang (mis. 9 baris, maks 4 -> 3+3+3), supaya tidak ada isian yang tersembunyi */
-export function chunkBalanced(list, max) {
-  const n = list.length; if (!n) return [[]];
-  const pages = Math.ceil(n / max), size = Math.ceil(n / pages);
-  return Array.from({ length: pages }, (_, i) => list.slice(i * size, (i + 1) * size));
-}
-const pgSuffix = (pg, pgs) => (pgs > 1 ? ` · halaman ${pg + 1}/${pgs}` : "");
+/** kepadatan baris: 0 = lega (<=5 baris), 1 = sedang (6-7), 2 = rapat (8+). Semua baris selalu tampil di SATU slide. */
+export const densityOf = (n) => (n <= 5 ? 0 : n <= 7 ? 1 : 2);
 
 export function buildSalesSlides(data, { mode = "OMZET", plantName = "" } = {}) {
   if (data.needsPlant) {
@@ -384,20 +379,36 @@ export function buildSalesSlides(data, { mode = "OMZET", plantName = "" } = {}) 
     </div>
   );
 
-  const rowBox = { display: "grid", gridTemplateColumns: "230px 1fr 1fr 1fr", gap: 12, ...card, padding: 12, alignItems: "stretch", flex: "1 1 0", minHeight: 0, maxHeight: 230, overflow: "hidden" };
-  const list = { flex: 1, minHeight: 0, display: "flex", flexDirection: "column", gap: 12 };
+  const rowBoxFor = (lvl) => (lvl === 0
+    ? { display: "grid", gridTemplateColumns: "230px 1fr 1fr 1fr", gap: 12, ...card, padding: 12, alignItems: "stretch", flex: "1 1 0", minHeight: 0, maxHeight: 230, overflow: "hidden" }
+    : { display: "grid", gridTemplateColumns: "200px 1fr 1fr 1fr", gap: 10, ...card, borderRadius: 12, padding: lvl === 1 ? "6px 10px" : "3px 8px", alignItems: "stretch", flex: "1 1 0", minHeight: 0, overflow: "hidden" });
+  const rowBox = rowBoxFor(0);
+  const listFor = (lvl) => ({ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", gap: lvl === 0 ? 12 : lvl === 1 ? 8 : 5 });
+  const list = listFor(0);
 
-  const teamPage = (rowsPage, offset, pg, pgs) => (
+  const teamLvl = densityOf(salesRows.length);
+  const team = (
     <div style={{ display: "flex", flexDirection: "column", gap: 12, height: "100%" }}>
-      <SlideHeader icon={<Icon name="users" size={22} color={LIME} />} title="Tim Sales" subtitle={`Pencapaian per personel / brand · ${salesRows.length} personel · ${salesType} oriented${pgSuffix(pg, pgs)}`} />
-      <YearColHeaders yearData={yearData} label="Sales / Brand" sub={`urut total ${salesType.toLowerCase()}`} />
-      <div style={list}>
-        {salesRows.length ? rowsPage.map((row, ri) => (
-          <div key={row.name} style={rowBox}>
-            <RowIdentity name={row.name} rank={offset + ri} total={row.total} />
+      <SlideHeader icon={<Icon name="users" size={22} color={LIME} />} title="Tim Sales" subtitle={`Pencapaian per personel / brand · ${salesRows.length} personel · ${salesType} oriented`} />
+      <YearColHeaders yearData={yearData} label="Sales / Brand" sub={`urut total ${salesType.toLowerCase()}`} idW={teamLvl ? 200 : 230} />
+      <div style={listFor(teamLvl)}>
+        {salesRows.length ? salesRows.map((row, ri) => (
+          <div key={row.name} style={rowBoxFor(teamLvl)}>
+            <RowIdentity name={row.name} rank={ri} total={row.total} compact={teamLvl > 0} />
             {row.cells.map((cell, yi) => {
               if (!cell) return <EmptyCell key={yi} />;
               const ach = cell.tgt > 0 ? (cell.act / cell.tgt) * 100 : 0, ok = ach >= 100, prev = yi > 0 ? row.cells[yi - 1] : null;
+              if (teamLvl > 0) return (
+                <div key={yi} style={{ borderRadius: 10, background: SLATE[50], border: `1px solid ${SLATE[200]}`, borderLeft: `4px solid ${YEAR_COLORS[yi]}`, padding: "0 10px", display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                  <MiniRing pct={ach} color={ok ? GREEN : "#D97706"} size={teamLvl === 1 ? 44 : 36} fs={teamLvl === 1 ? 11 : 9} />
+                  <div style={{ minWidth: 0, flex: 1 }} title={cell.note || undefined}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
+                      <span style={{ ...ellipsis, fontSize: teamLvl === 1 ? 17 : 15, fontWeight: 900, color: NAVY }}>{rp(cell.act)}</span><DeltaChip cur={cell.act} prev={prev ? prev.act : 0} />
+                    </div>
+                    <div style={{ ...ellipsis, fontSize: 11, color: SLATE[500] }}>Target {rp(cell.tgt)} · <b style={{ color: ok ? "#065f46" : "#92400e" }}>{ok ? "Tercapai" : "Belum tercapai"}</b></div>
+                    {cell.note && <div style={{ ...ellipsis, fontSize: 11, fontStyle: "italic", color: SLATE[500] }}>“{cell.note}”</div>}
+                  </div>
+                </div>);
               return (
                 <div key={yi} style={{ borderRadius: 12, background: SLATE[50], border: `1px solid ${SLATE[200]}`, borderLeft: `4px solid ${YEAR_COLORS[yi]}`, padding: "0 12px", display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
                   <MiniRing pct={ach} color={ok ? GREEN : "#D97706"} />
@@ -407,7 +418,7 @@ export function buildSalesSlides(data, { mode = "OMZET", plantName = "" } = {}) 
                     </div>
                     <div style={{ fontSize: 12, color: SLATE[500] }}>Target {rp(cell.tgt)}</div>
                     <span style={{ display: "inline-block", marginTop: 2, padding: "1px 8px", borderRadius: 99, fontSize: 11, fontWeight: 800, background: ok ? "#d1fae5" : "#fef3c7", color: ok ? "#065f46" : "#92400e" }}>{ok ? "Tercapai" : "Belum tercapai"}</span>
-                    {cell.note && <div title={cell.note} style={{ fontSize: 12, fontStyle: "italic", color: SLATE[500], marginTop: 2, lineHeight: 1.25, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>“{cell.note}”</div>}
+                    {cell.note && <div title={cell.note} style={{ ...ellipsis, fontSize: 12, fontStyle: "italic", color: SLATE[500], marginTop: 2 }}>“{cell.note}”</div>}
                   </div>
                 </div>);
             })}
@@ -437,19 +448,21 @@ export function buildSalesSlides(data, { mode = "OMZET", plantName = "" } = {}) 
     });
     return [...map.values()].map((e) => ({ ...e, prods: [...e.prods.values()].sort((a, b) => b.jalan - a.jalan), ach: e.tgt > 0 ? (e.act / e.tgt) * 100 : 0 })).sort((a, b) => b.act - a.act);
   })();
-  const salesProductsPage = (ps, pg, pgs) => (
+  const spCols = perSales.length <= 3 ? Math.max(perSales.length, 1) : perSales.length <= 9 ? 3 : 4;
+  const spDense = perSales.length > 4;
+  const salesProducts = (
     <div style={{ display: "flex", flexDirection: "column", gap: 12, height: "100%" }}>
-      <SlideHeader icon={<Icon name="box" size={22} color={LIME} />} title="Top 3 Produk per Sales" subtitle={spYear ? `Tiga produk andalan tiap personel · data ${spYear.yr} · ${perSales.length} personel${pgSuffix(pg, pgs)}` : "Belum ada data sales"} />
-      {ps.length ? (
-        <div style={{ flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: ps.length === 1 ? "minmax(0, 640px)" : `repeat(${Math.min(Math.max(ps.length, 1), 3)}, 1fr)`, justifyContent: ps.length === 1 ? "center" : "stretch", gridAutoRows: ps.length <= 3 ? "minmax(0, 330px)" : "1fr", gap: 12, alignContent: ps.length <= 3 ? "start" : "stretch" }}>
-          {ps.map((sp, si) => {
+      <SlideHeader icon={<Icon name="box" size={22} color={LIME} />} title="Top 3 Produk per Sales" subtitle={spYear ? `Tiga produk andalan tiap personel · data ${spYear.yr} · ${perSales.length} personel` : "Belum ada data sales"} />
+      {perSales.length ? (
+        <div style={{ flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: perSales.length === 1 ? "minmax(0, 640px)" : `repeat(${spCols}, 1fr)`, justifyContent: perSales.length === 1 ? "center" : "stretch", gridAutoRows: perSales.length <= 3 ? "minmax(0, 330px)" : "minmax(0, 1fr)", gap: 12, alignContent: perSales.length <= 3 ? "start" : "stretch" }}>
+          {perSales.map((sp, si) => {
             const top = sp.prods.slice(0, MIN_P), mx = Math.max(...top.flatMap((p) => [p.jalan, p.lalu]), 1);
             const ok = sp.ach >= 100;
             return (
-              <div key={sp.name} style={{ ...card, padding: 14, display: "flex", flexDirection: "column", gap: 8, minHeight: 0, overflow: "hidden" }}>
+              <div key={sp.name} style={{ ...card, padding: spDense ? 9 : 14, display: "flex", flexDirection: "column", gap: spDense ? 5 : 8, minHeight: 0, overflow: "hidden" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <div style={{ width: 40, height: 40, borderRadius: 12, display: "grid", placeItems: "center", fontSize: 18, fontWeight: 900, color: "#fff", background: `linear-gradient(135deg, ${NAVY}, ${BLUE})`, flex: "none", position: "relative" }}>
-                    {sp.name.charAt(0).toUpperCase()}{pg === 0 && si === 0 && <span style={{ position: "absolute", top: -9, right: -9, fontSize: 14 }}>🏆</span>}
+                  <div style={{ width: spDense ? 30 : 40, height: spDense ? 30 : 40, borderRadius: 12, display: "grid", placeItems: "center", fontSize: 18, fontWeight: 900, color: "#fff", background: `linear-gradient(135deg, ${NAVY}, ${BLUE})`, flex: "none", position: "relative" }}>
+                    {sp.name.charAt(0).toUpperCase()}{si === 0 && <span style={{ position: "absolute", top: -9, right: -9, fontSize: 14 }}>🏆</span>}
                   </div>
                   <div style={{ minWidth: 0, flex: 1 }}>
                     <div title={sp.name} style={{ ...ellipsis, fontSize: 16, fontWeight: 900, color: NAVY, lineHeight: 1.2 }}>{sp.name}</div>
@@ -458,7 +471,13 @@ export function buildSalesSlides(data, { mode = "OMZET", plantName = "" } = {}) 
                   <span style={{ padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 800, flex: "none", background: top.length >= MIN_P ? "#d1fae5" : "#fef3c7", color: top.length >= MIN_P ? "#065f46" : "#92400e" }}>{Math.min(top.length, MIN_P)}/{MIN_P}</span>
                 </div>
                 <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", gap: 6 }}>
-                  {Array.from({ length: MIN_P }, (_, i) => top[i] || null).map((p, i) => p ? (
+                  {Array.from({ length: MIN_P }, (_, i) => top[i] || null).map((p, i) => p && spDense ? (
+                    <div key={i} style={{ flex: 1, minHeight: 0, borderRadius: 8, background: SLATE[50], border: `1px solid ${SLATE[200]}`, borderLeft: `4px solid ${PIE_COLORS[i]}`, padding: "0 8px", display: "flex", alignItems: "center", gap: 6 }} title={p.name}>
+                      <span style={{ fontSize: 11, fontWeight: 900, color: SLATE[400], flex: "none" }}>#{i + 1}</span>
+                      <span style={{ ...ellipsis, flex: 1, fontSize: 12, fontWeight: 800, color: NAVY }}>{p.name}</span>
+                      {(p.jalan > 0 || p.lalu > 0) ? <><span style={{ fontSize: 11, fontWeight: 800, color: SLATE[600], whiteSpace: "nowrap" }}>{rp(p.jalan)}</span><DeltaChip cur={p.jalan} prev={p.lalu} /></> : <span style={{ fontSize: 10, fontStyle: "italic", color: SLATE[400] }}>belum diisi</span>}
+                    </div>
+                  ) : p ? (
                     <div key={i} style={{ flex: 1, minHeight: 0, borderRadius: 10, background: SLATE[50], border: `1px solid ${SLATE[200]}`, borderLeft: `4px solid ${PIE_COLORS[i]}`, padding: "4px 10px", display: "flex", flexDirection: "column", justifyContent: "center", gap: 3, minWidth: 0 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                         <span style={{ fontSize: 12, fontWeight: 900, color: SLATE[400], flex: "none" }}>#{i + 1}</span>
@@ -483,19 +502,30 @@ export function buildSalesSlides(data, { mode = "OMZET", plantName = "" } = {}) 
     </div>
   );
 
-  const productsPage = (rowsPage, offset, pg, pgs) => (
+  const prodLvl = densityOf(prodRows.length);
+  const products = (
     <div style={{ display: "flex", flexDirection: "column", gap: 12, height: "100%" }}>
-      <SlideHeader icon={<Icon name="box" size={22} color={LIME} />} title="Top Produk / Item Group" subtitle={`Penjualan berjalan vs tahun lalu · ${prodRows.length} item group${pgSuffix(pg, pgs)}`} />
-      <YearColHeaders yearData={yearData} label="Item group" sub="urut total penjualan" />
-      <div style={list}>
-        {prodRows.length ? rowsPage.map((row, ri) => {
+      <SlideHeader icon={<Icon name="box" size={22} color={LIME} />} title="Top Produk / Item Group" subtitle={`Penjualan berjalan vs tahun lalu · ${prodRows.length} item group`} />
+      <YearColHeaders yearData={yearData} label="Item group" sub="urut total penjualan" idW={prodLvl ? 200 : 230} />
+      <div style={listFor(prodLvl)}>
+        {prodRows.length ? prodRows.map((row, ri) => {
           const share = prodGrand > 0 ? (row.total / prodGrand) * 100 : 0;
           return (
-            <div key={row.name} style={rowBox}>
-              <RowIdentity name={row.name} rank={offset + ri} total={row.total} extra={<div style={{ marginTop: 4, display: "flex", alignItems: "center", gap: 8 }}><div style={{ width: 80, height: 6, borderRadius: 99, background: SLATE[200], overflow: "hidden" }}><div style={{ height: "100%", width: `${Math.min(share, 100)}%`, background: LIME_D }} /></div><span style={{ fontSize: 11, fontWeight: 800, color: SLATE[500] }}>{share.toFixed(0)}%</span></div>} />
+            <div key={row.name} style={rowBoxFor(prodLvl)}>
+              <RowIdentity name={row.name} rank={ri} total={row.total} compact={prodLvl > 0} suffix={prodLvl > 0 ? ` · ${share.toFixed(0)}%` : ""} extra={prodLvl > 0 ? null : <div style={{ marginTop: 4, display: "flex", alignItems: "center", gap: 8 }}><div style={{ width: 80, height: 6, borderRadius: 99, background: SLATE[200], overflow: "hidden" }}><div style={{ height: "100%", width: `${Math.min(share, 100)}%`, background: LIME_D }} /></div><span style={{ fontSize: 11, fontWeight: 800, color: SLATE[500] }}>{share.toFixed(0)}%</span></div>} />
               {row.cells.map((cell, yi) => {
                 if (!cell) return <EmptyCell key={yi} />;
                 const c = YEAR_COLORS[yi], mx = Math.max(cell.cur, cell.prev, 1);
+                if (prodLvl > 0) return (
+                  <div key={yi} style={{ borderRadius: 10, background: SLATE[50], border: `1px solid ${SLATE[200]}`, borderLeft: `4px solid ${c}`, padding: "2px 10px", display: "flex", flexDirection: "column", justifyContent: "center", gap: 2, minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
+                      <span style={{ ...ellipsis, fontSize: prodLvl === 1 ? 18 : 15, fontWeight: 900, color: c }}>{rp(cell.cur)}</span><DeltaChip cur={cell.cur} prev={cell.prev} base="Baseline 🚀" />
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <Track pct={(cell.cur / mx) * 100} color={c} h={5} />
+                      <span style={{ fontSize: 10, color: SLATE[500], whiteSpace: "nowrap" }}>Lalu {rp(cell.prev)}</span>
+                    </div>
+                  </div>);
                 return (
                   <div key={yi} style={{ borderRadius: 12, background: SLATE[50], border: `1px solid ${SLATE[200]}`, borderLeft: `4px solid ${c}`, padding: "8px 12px", display: "flex", flexDirection: "column", justifyContent: "center", gap: 6, minWidth: 0 }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
@@ -603,11 +633,6 @@ export function buildSalesSlides(data, { mode = "OMZET", plantName = "" } = {}) 
     </div>
   );
 
-  const pagedSlides = (id, label, pages, render) => {
-    let off = 0;
-    return pages.map((rows, pg) => { const node = render(rows, off, pg, pages.length); off += rows.length; return { id: pg ? `${id}${pg + 1}` : id, label: pg ? `${label} ${pg + 1}` : label, node }; });
-  };
-
   return [
     { id: "master", label: "Master Dashboard", node: master },
     { id: "timeline", label: "Timeline", node: (
@@ -615,9 +640,9 @@ export function buildSalesSlides(data, { mode = "OMZET", plantName = "" } = {}) 
         <SlideHeader icon={<Icon name="calendar" size={22} color={LIME} />} title="Perjalanan Kinerja 2024 – 2026" subtitle="Realisasi per tahun, panah = naik / turun vs tahun sebelumnya, rincian input di bawahnya" />
         <div style={{ ...card, flex: 1, minHeight: 0, padding: "12px 0", display: "flex", flexDirection: "column" }}><YearTimeline yearData={yearData} /></div>
       </div>) },
-    ...pagedSlides("team", "Tim Sales", chunkBalanced(salesRows, 4), (rows, off, pg, pgs) => teamPage(rows, off, pg, pgs)),
-    ...pagedSlides("salesProducts", "Top 3 Produk", chunkBalanced(perSales, 6), (rows, off, pg, pgs) => salesProductsPage(rows, pg, pgs)),
-    ...pagedSlides("products", "Produk", chunkBalanced(prodRows, 4), (rows, off, pg, pgs) => productsPage(rows, off, pg, pgs)),
+    { id: "team", label: "Tim Sales", node: team },
+    { id: "salesProducts", label: "Top 3 Produk", node: salesProducts },
+    { id: "products", label: "Produk", node: products },
     { id: "innovation", label: "Inovasi", node: innovation },
     { id: "support", label: "Sales Support", node: support },
     { id: "outlook", label: "Outlook 2027", node: outlook },
