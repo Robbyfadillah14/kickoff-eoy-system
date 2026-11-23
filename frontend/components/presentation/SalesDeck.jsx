@@ -215,6 +215,14 @@ function YearTimeline({ yearData }) {
 }
 
 /* ───────── builder slide ───────── */
+/** bagi daftar jadi halaman seimbang (mis. 9 baris, maks 4 -> 3+3+3), supaya tidak ada isian yang tersembunyi */
+export function chunkBalanced(list, max) {
+  const n = list.length; if (!n) return [[]];
+  const pages = Math.ceil(n / max), size = Math.ceil(n / pages);
+  return Array.from({ length: pages }, (_, i) => list.slice(i * size, (i + 1) * size));
+}
+const pgSuffix = (pg, pgs) => (pgs > 1 ? ` · halaman ${pg + 1}/${pgs}` : "");
+
 export function buildSalesSlides(data, { mode = "OMZET", plantName = "" } = {}) {
   if (data.needsPlant) {
     return [{ id: "plant", label: "Pilih plant", node: <div style={{ height: "100%", display: "grid", placeItems: "center" }}><Empty hint="Data berisi lebih dari satu plant — pilih plant dulu agar angka tidak tercampur.">Plant belum dipilih</Empty></div> }];
@@ -379,14 +387,14 @@ export function buildSalesSlides(data, { mode = "OMZET", plantName = "" } = {}) 
   const rowBox = { display: "grid", gridTemplateColumns: "230px 1fr 1fr 1fr", gap: 12, ...card, padding: 12, alignItems: "stretch", flex: "1 1 0", minHeight: 0, maxHeight: 230, overflow: "hidden" };
   const list = { flex: 1, minHeight: 0, display: "flex", flexDirection: "column", gap: 12 };
 
-  const team = (
+  const teamPage = (rowsPage, offset, pg, pgs) => (
     <div style={{ display: "flex", flexDirection: "column", gap: 12, height: "100%" }}>
-      <SlideHeader icon={<Icon name="users" size={22} color={LIME} />} title="Tim Sales" subtitle={`Pencapaian per personel / brand · ${salesRows.length} personel · ${salesType} oriented`} />
+      <SlideHeader icon={<Icon name="users" size={22} color={LIME} />} title="Tim Sales" subtitle={`Pencapaian per personel / brand · ${salesRows.length} personel · ${salesType} oriented${pgSuffix(pg, pgs)}`} />
       <YearColHeaders yearData={yearData} label="Sales / Brand" sub={`urut total ${salesType.toLowerCase()}`} />
       <div style={list}>
-        {salesRows.length ? salesRows.slice(0, 5).map((row, ri) => (
+        {salesRows.length ? rowsPage.map((row, ri) => (
           <div key={row.name} style={rowBox}>
-            <RowIdentity name={row.name} rank={ri} total={row.total} />
+            <RowIdentity name={row.name} rank={offset + ri} total={row.total} />
             {row.cells.map((cell, yi) => {
               if (!cell) return <EmptyCell key={yi} />;
               const ach = cell.tgt > 0 ? (cell.act / cell.tgt) * 100 : 0, ok = ach >= 100, prev = yi > 0 ? row.cells[yi - 1] : null;
@@ -399,12 +407,11 @@ export function buildSalesSlides(data, { mode = "OMZET", plantName = "" } = {}) 
                     </div>
                     <div style={{ fontSize: 12, color: SLATE[500] }}>Target {rp(cell.tgt)}</div>
                     <span style={{ display: "inline-block", marginTop: 2, padding: "1px 8px", borderRadius: 99, fontSize: 11, fontWeight: 800, background: ok ? "#d1fae5" : "#fef3c7", color: ok ? "#065f46" : "#92400e" }}>{ok ? "Tercapai" : "Belum tercapai"}</span>
-                    {cell.note && <div title={cell.note} style={{ ...ellipsis, fontSize: 12, fontStyle: "italic", color: SLATE[500], marginTop: 2 }}>“{cell.note}”</div>}
+                    {cell.note && <div title={cell.note} style={{ fontSize: 12, fontStyle: "italic", color: SLATE[500], marginTop: 2, lineHeight: 1.25, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>“{cell.note}”</div>}
                   </div>
                 </div>);
             })}
           </div>)) : <div style={{ padding: "40px 0", textAlign: "center" }}><Dash text="Belum ada data sales." /></div>}
-        {salesRows.length > 5 && <div style={{ fontSize: 12, color: SLATE[500], flex: "none" }}>+{salesRows.length - 5} personel lain ada di laporan</div>}
       </div>
     </div>
   );
@@ -430,19 +437,19 @@ export function buildSalesSlides(data, { mode = "OMZET", plantName = "" } = {}) 
     });
     return [...map.values()].map((e) => ({ ...e, prods: [...e.prods.values()].sort((a, b) => b.jalan - a.jalan), ach: e.tgt > 0 ? (e.act / e.tgt) * 100 : 0 })).sort((a, b) => b.act - a.act);
   })();
-  const salesProducts = (
+  const salesProductsPage = (ps, pg, pgs) => (
     <div style={{ display: "flex", flexDirection: "column", gap: 12, height: "100%" }}>
-      <SlideHeader icon={<Icon name="box" size={22} color={LIME} />} title="Top 3 Produk per Sales" subtitle={spYear ? `Tiga produk andalan tiap personel · data ${spYear.yr} · ${perSales.length} personel` : "Belum ada data sales"} />
-      {perSales.length ? (
-        <div style={{ flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: perSales.length === 1 ? "minmax(0, 640px)" : `repeat(${Math.min(Math.max(perSales.length, 1), 3)}, 1fr)`, justifyContent: perSales.length === 1 ? "center" : "stretch", gridAutoRows: perSales.length <= 3 ? "minmax(0, 330px)" : "1fr", gap: 12, alignContent: perSales.length <= 3 ? "start" : "stretch" }}>
-          {perSales.slice(0, 6).map((sp, si) => {
+      <SlideHeader icon={<Icon name="box" size={22} color={LIME} />} title="Top 3 Produk per Sales" subtitle={spYear ? `Tiga produk andalan tiap personel · data ${spYear.yr} · ${perSales.length} personel${pgSuffix(pg, pgs)}` : "Belum ada data sales"} />
+      {ps.length ? (
+        <div style={{ flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: ps.length === 1 ? "minmax(0, 640px)" : `repeat(${Math.min(Math.max(ps.length, 1), 3)}, 1fr)`, justifyContent: ps.length === 1 ? "center" : "stretch", gridAutoRows: ps.length <= 3 ? "minmax(0, 330px)" : "1fr", gap: 12, alignContent: ps.length <= 3 ? "start" : "stretch" }}>
+          {ps.map((sp, si) => {
             const top = sp.prods.slice(0, MIN_P), mx = Math.max(...top.flatMap((p) => [p.jalan, p.lalu]), 1);
             const ok = sp.ach >= 100;
             return (
               <div key={sp.name} style={{ ...card, padding: 14, display: "flex", flexDirection: "column", gap: 8, minHeight: 0, overflow: "hidden" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <div style={{ width: 40, height: 40, borderRadius: 12, display: "grid", placeItems: "center", fontSize: 18, fontWeight: 900, color: "#fff", background: `linear-gradient(135deg, ${NAVY}, ${BLUE})`, flex: "none", position: "relative" }}>
-                    {sp.name.charAt(0).toUpperCase()}{si === 0 && <span style={{ position: "absolute", top: -9, right: -9, fontSize: 14 }}>🏆</span>}
+                    {sp.name.charAt(0).toUpperCase()}{pg === 0 && si === 0 && <span style={{ position: "absolute", top: -9, right: -9, fontSize: 14 }}>🏆</span>}
                   </div>
                   <div style={{ minWidth: 0, flex: 1 }}>
                     <div title={sp.name} style={{ ...ellipsis, fontSize: 16, fontWeight: 900, color: NAVY, lineHeight: 1.2 }}>{sp.name}</div>
@@ -473,20 +480,19 @@ export function buildSalesSlides(data, { mode = "OMZET", plantName = "" } = {}) 
           })}
         </div>
       ) : <div style={{ padding: "40px 0", textAlign: "center" }}><Dash text="Belum ada data sales." /></div>}
-      {perSales.length > 6 && <div style={{ fontSize: 12, color: SLATE[500], flex: "none" }}>+{perSales.length - 6} personel lain ada di laporan</div>}
     </div>
   );
 
-  const products = (
+  const productsPage = (rowsPage, offset, pg, pgs) => (
     <div style={{ display: "flex", flexDirection: "column", gap: 12, height: "100%" }}>
-      <SlideHeader icon={<Icon name="box" size={22} color={LIME} />} title="Top Produk / Item Group" subtitle={`Penjualan berjalan vs tahun lalu · ${prodRows.length} item group`} />
+      <SlideHeader icon={<Icon name="box" size={22} color={LIME} />} title="Top Produk / Item Group" subtitle={`Penjualan berjalan vs tahun lalu · ${prodRows.length} item group${pgSuffix(pg, pgs)}`} />
       <YearColHeaders yearData={yearData} label="Item group" sub="urut total penjualan" />
       <div style={list}>
-        {prodRows.length ? prodRows.slice(0, 5).map((row, ri) => {
+        {prodRows.length ? rowsPage.map((row, ri) => {
           const share = prodGrand > 0 ? (row.total / prodGrand) * 100 : 0;
           return (
             <div key={row.name} style={rowBox}>
-              <RowIdentity name={row.name} rank={ri} total={row.total} extra={<div style={{ marginTop: 4, display: "flex", alignItems: "center", gap: 8 }}><div style={{ width: 80, height: 6, borderRadius: 99, background: SLATE[200], overflow: "hidden" }}><div style={{ height: "100%", width: `${Math.min(share, 100)}%`, background: LIME_D }} /></div><span style={{ fontSize: 11, fontWeight: 800, color: SLATE[500] }}>{share.toFixed(0)}%</span></div>} />
+              <RowIdentity name={row.name} rank={offset + ri} total={row.total} extra={<div style={{ marginTop: 4, display: "flex", alignItems: "center", gap: 8 }}><div style={{ width: 80, height: 6, borderRadius: 99, background: SLATE[200], overflow: "hidden" }}><div style={{ height: "100%", width: `${Math.min(share, 100)}%`, background: LIME_D }} /></div><span style={{ fontSize: 11, fontWeight: 800, color: SLATE[500] }}>{share.toFixed(0)}%</span></div>} />
               {row.cells.map((cell, yi) => {
                 if (!cell) return <EmptyCell key={yi} />;
                 const c = YEAR_COLORS[yi], mx = Math.max(cell.cur, cell.prev, 1);
@@ -504,7 +510,6 @@ export function buildSalesSlides(data, { mode = "OMZET", plantName = "" } = {}) 
               })}
             </div>);
         }) : <div style={{ padding: "40px 0", textAlign: "center" }}><Dash text="Belum ada data produk." /></div>}
-        {prodRows.length > 5 && <div style={{ fontSize: 12, color: SLATE[500], flex: "none" }}>+{prodRows.length - 5} item group lain ada di laporan</div>}
       </div>
     </div>
   );
@@ -598,6 +603,11 @@ export function buildSalesSlides(data, { mode = "OMZET", plantName = "" } = {}) 
     </div>
   );
 
+  const pagedSlides = (id, label, pages, render) => {
+    let off = 0;
+    return pages.map((rows, pg) => { const node = render(rows, off, pg, pages.length); off += rows.length; return { id: pg ? `${id}${pg + 1}` : id, label: pg ? `${label} ${pg + 1}` : label, node }; });
+  };
+
   return [
     { id: "master", label: "Master Dashboard", node: master },
     { id: "timeline", label: "Timeline", node: (
@@ -605,9 +615,9 @@ export function buildSalesSlides(data, { mode = "OMZET", plantName = "" } = {}) 
         <SlideHeader icon={<Icon name="calendar" size={22} color={LIME} />} title="Perjalanan Kinerja 2024 – 2026" subtitle="Realisasi per tahun, panah = naik / turun vs tahun sebelumnya, rincian input di bawahnya" />
         <div style={{ ...card, flex: 1, minHeight: 0, padding: "12px 0", display: "flex", flexDirection: "column" }}><YearTimeline yearData={yearData} /></div>
       </div>) },
-    { id: "team", label: "Tim Sales", node: team },
-    { id: "salesProducts", label: "Top 3 Produk", node: salesProducts },
-    { id: "products", label: "Produk", node: products },
+    ...pagedSlides("team", "Tim Sales", chunkBalanced(salesRows, 4), (rows, off, pg, pgs) => teamPage(rows, off, pg, pgs)),
+    ...pagedSlides("salesProducts", "Top 3 Produk", chunkBalanced(perSales, 6), (rows, off, pg, pgs) => salesProductsPage(rows, pg, pgs)),
+    ...pagedSlides("products", "Produk", chunkBalanced(prodRows, 4), (rows, off, pg, pgs) => productsPage(rows, off, pg, pgs)),
     { id: "innovation", label: "Inovasi", node: innovation },
     { id: "support", label: "Sales Support", node: support },
     { id: "outlook", label: "Outlook 2027", node: outlook },
