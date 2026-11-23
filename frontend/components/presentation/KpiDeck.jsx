@@ -5,6 +5,7 @@ import { DashboardSlide, PanelsSlide } from "./KpiDashboard.jsx";
 import { CoverSlide, SlideHead, Glass, Eyebrow, ArcGauge, YearBars, Pill, Empty, JourneySlide, FutureSlide, ClosingSlide, TrendSlide, StatTile, ptText, deltaColor, pctText } from "./slides.jsx";
 import { buildClusterData, collectByDept, resolveDepartment, feedersOf, ownersOf, phaseOf, toNum, formatRupiah, BRAND, phaseColor, statusOf, isEmptyValue } from "../../lib/presentation/index.js";
 import { buildHrSlides } from "./HrSlides.jsx";
+import { buildLogSlides } from "./LogSlides.jsx";
 import { DEPT_KPIS, OUTLOOK_KEYS, kpiMatrix, scoreOf, excelItems, clip } from "../../lib/presentation/kpi.js";
 
 const ACTUAL_YEARS = [2024, 2025, 2026];
@@ -151,6 +152,7 @@ export function buildKpiSlides(data, cfg, { plantName = "", deptCode = null } = 
     if (m.hasData) deptSlides.push({ id: `d-${d.code}`, label: d.short, node: <DeptMatrixSlide dept={d} matrix={m} accent={cfg.accent} support={!ownCluster(d)} /> });
     if (items.length) deptSlides.push({ id: `x-${d.code}`, label: `${d.short} (Excel)`, node: <ExcelSlide dept={d} year={excelYear} items={items} accent={cfg.accent} /> });
     if (d.code === "HR_MR") deptSlides.push(...buildHrSlides(data, { accent: cfg.accent }));
+    if (d.code === "ADM_LOG") deptSlides.push(...buildLogSlides(data, { accent: cfg.accent }));
   }
 
   // perjalanan: teks evaluasi per departemen + RGT dari laporan
@@ -162,7 +164,7 @@ export function buildKpiSlides(data, cfg, { plantName = "", deptCode = null } = 
       return t ? `${e.dept.short}: ${clip(t, 84)}` : null;
     }).filter(Boolean);
     const rgt = firstText(yr, OWN_RGT[yr]);
-    return { year: yr, phase: phaseOf(yr)?.phase, items: [rgt ? clip(rgt, 90) : null, ...evals].filter(Boolean).slice(0, 3) };
+    return { year: yr, phase: phaseOf(yr)?.phase, items: evals.slice(0, 3) };
   });
 
   const f = y[2027];
@@ -226,7 +228,7 @@ export function buildKpiSlides(data, cfg, { plantName = "", deptCode = null } = 
   }
 
   slides.push(
-    { id: "journey", label: "Perjalanan", node: <JourneySlide columns={journey} /> },
+    ...(journey.some((c) => c.items.length) ? [{ id: "journey", label: "Perjalanan", node: <JourneySlide columns={journey} /> }] : []),
     { id: "future", label: "2027", node: <FutureSlide outlooks={outlooks} wins={wins} risks={risks} hint={!solo && data.completeness[2027]?.missing?.length ? `Belum mengisi 2027: ${data.completeness[2027].missing.map((c) => resolveDepartment(c)?.short || c).join(", ")}` : undefined} /> },
     ...(latest && cur?.total > 0 || outlooks.length ? [{ id: "closing", label: "Penutup", node: <ClosingSlide accent={cfg.accent} title="Ringkasan & langkah berikutnya"
       subtitle={cur && cur.total > 0 ? `${solo ? solo.name : cfg.title} ${latest}: ${cur.ok} dari ${cur.total} indikator bertarget tercapai — yang patut dirayakan, dijaga, dan dikejar di 2027.` : undefined}
