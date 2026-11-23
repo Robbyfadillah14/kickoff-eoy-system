@@ -6,6 +6,7 @@ import { achievementOf } from "../../lib/presentation/commercialData.js";
 import { buildClusterData, collectByDept, resolveDepartment, toNum, phaseOf, BRAND, statusOf, isEmptyValue } from "../../lib/presentation/index.js";
 import { kpiMatrix, clip } from "../../lib/presentation/kpi.js";
 import { DeptMatrixSlide } from "./KpiDeck.jsx";
+import { buildDmSlides } from "./DmSlides.jsx";
 
 const ACTUAL_YEARS = [2024, 2025, 2026];
 const asList = (v) => (Array.isArray(v) ? v : v ? [v] : []).map((x) => (typeof x === "string" ? x : x?.title || x?.text || "")).filter(Boolean);
@@ -94,6 +95,7 @@ export function buildClusterSlides(data, cfg, { plantName = "" } = {}) {
           </div>)}
       </div>) },
     ...(matrix.hasData && dept ? [{ id: "matrix", label: "Indikator", node: <DeptMatrixSlide dept={dept} matrix={matrix} accent={cfg.accent} /> }] : []),
+    ...(cfg.deptCode === "DIG_MKT" ? buildDmSlides(data, { accent: cfg.accent }) : []),
     { id: "journey", label: "Perjalanan", node: <JourneySlide columns={journey} /> },
     { id: "future", label: "2027", node: <FutureSlide outlooks={outlooks} wins={wins} risks={risks} hint={data.completeness[2027]?.missing?.length ? `Belum mengisi 2027: ${data.completeness[2027].missing.join(", ")}` : undefined} /> },
     ...(scored.length || outlooks.length ? [{ id: "closing", label: "Penutup", node: <ClosingSlide accent={cfg.accent} title="Ringkasan & langkah berikutnya"

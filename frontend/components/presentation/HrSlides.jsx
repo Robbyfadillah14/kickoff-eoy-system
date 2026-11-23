@@ -37,18 +37,18 @@ function snapshot(data) {
 const metricOf = (hist, key) => hist?.metrics?.find((m) => m.key === key) || null;
 const monthly = (ds) => { const a = Array(12).fill(null); for (const m of ds?.months || []) if (m.m >= 1 && m.m <= 12) a[m.m - 1] = m.pct; return a; };
 
-/* ------------------------------------------------------------------ elemen kecil */
+/* ------------------------------------------------------------------ elemen kecil (diekspor, dipakai juga oleh DmSlides) */
 
-const PrintCss = () => <style>{"@media print{.hr-noprint{display:none!important}}"}</style>;
+export const PrintCss = () => <style>{"@media print{.hr-noprint{display:none!important}}"}</style>;
 
-function InfoBtn({ onClick, color = BRAND.cyan }) {
+export function InfoBtn({ onClick, color = BRAND.cyan }) {
   return (
     <button type="button" className="hr-noprint" onClick={onClick} aria-label="Lihat rincian angka ini" title="Dari mana angka ini? Klik untuk rincian"
       style={{ flex: "none", width: 36, height: 36, borderRadius: 99, border: `2px solid ${color}`, background: `${color}1a`, color, fontWeight: 800, fontSize: 18, fontFamily: "Georgia, serif", fontStyle: "italic", cursor: "pointer", lineHeight: 1 }}>i</button>
   );
 }
 
-function Block({ title, children }) {
+export function Block({ title, children }) {
   return (
     <div style={{ marginTop: 20 }}>
       <div style={{ fontSize: 12, letterSpacing: 2.5, fontWeight: 800, color: BRAND.muted, textTransform: "uppercase", marginBottom: 8 }}>{title}</div>
@@ -57,7 +57,7 @@ function Block({ title, children }) {
   );
 }
 
-function Tbl({ head, rows, foot, align = [] }) {
+export function Tbl({ head, rows, foot, align = [] }) {
   const th = { fontSize: 12, letterSpacing: 1.2, textTransform: "uppercase", color: BRAND.muted, fontWeight: 800, padding: "8px 10px", borderBottom: `1px solid ${BRAND.line}`, whiteSpace: "nowrap" };
   const td = { fontSize: 15, padding: "7px 10px", borderBottom: `1px solid ${BRAND.line}`, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" };
   return (
@@ -142,7 +142,7 @@ export function HrDetailContent({ kind, ds }) {
   </>);
 }
 
-function DetailPopup({ title, sub, onClose, children }) {
+export function DetailPopup({ title, sub, onClose, children }) {
   useEffect(() => {
     // Esc menutup popup dulu (bukan menutup presentasi): listener fase-capture + stopPropagation
     const h = (e) => { if (e.key === "Escape") { e.stopPropagation(); e.preventDefault(); onClose(); } };
@@ -167,7 +167,7 @@ function DetailPopup({ title, sub, onClose, children }) {
 }
 
 /** grafik batang: kategori (bulan/tahun) x beberapa seri, garis target putus-putus */
-function BarChart({ labels, series, target, targetLabel, fmtTick, fmtVal, h = 262, w = 560 }) {
+export function BarChart({ labels, series, target, targetLabel, fmtTick, fmtVal, h = 262, w = 560 }) {
   const padL = 50, padR = 8, padT = 20, padB = 28;
   const vals = series.flatMap((s) => s.values.filter((v) => v != null));
   const mx = Math.max(target ?? 0, ...vals, 1e-9) * 1.18;

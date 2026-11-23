@@ -2,6 +2,7 @@
 import React, { useState } from "react";
 import { parseExcelFile, applyExcelImport } from "../../lib/reportExcel";
 import { FileSpreadsheet, Upload, CheckCircle2, Edit3, Eye } from "lucide-react";
+import DmFigures from "./DmFigures";
 
 export default function DigitalMarketingForm({ form, setForm }) {
   const [fileName, setFileName] = useState("");
@@ -79,6 +80,9 @@ export default function DigitalMarketingForm({ form, setForm }) {
           </button>
         </div>
       </div>
+
+      {/* ANGKA UTAMA (Search Console, Leads WA, Insight sosmed, E-commerce) — tampil di kedua mode */}
+      <DmFigures form={form} setForm={setForm} />
 
       {/* ---------------------------------------------------- */}
       {/* JIKA PILIH MODE EXCEL: TAMPILKAN BANNER PANDUAN & UPLOADER */}
