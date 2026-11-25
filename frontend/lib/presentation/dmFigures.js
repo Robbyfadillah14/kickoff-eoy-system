@@ -26,8 +26,8 @@ export const DM_GROUPS = [
     ],
   },
   {
-    id: "social", title: "Insight sosial media PT. Ekasurya Inout Indonesia", short: "Sosial media", color: "#f472b6", icon: "bolt", periodKey: "dmSmPeriod", headline: "dmSmReach",
-    where: "Meta Business Suite / Insights akun resmi perusahaan, rentang tanggal setahun penuh.",
+    id: "social", title: "Insight Instagram PT. Ekasurya Inout Indonesia", short: "Instagram", color: "#f472b6", icon: "bolt", periodKey: "dmSmPeriod", headline: "dmSmReach",
+    where: "Instagram → Insights (atau Meta Business Suite) akun resmi perusahaan, rentang tanggal setahun penuh.",
     fields: [
       { key: "dmSmReach", label: "Reach", kind: "count", hint: "250000" },
       { key: "dmSmImprFol", label: "Impression followers", kind: "count", hint: "80000" },
@@ -37,10 +37,24 @@ export const DM_GROUPS = [
     ],
   },
   {
+    id: "tiktok", title: "Insight TikTok PT. Ekasurya Inout Indonesia", short: "TikTok", color: "#a78bfa", icon: "star", periodKey: "dmTtPeriod", headline: "dmTtViews",
+    where: "TikTok Studio / TikTok Analytics akun bisnis → Overview, rentang tanggal setahun penuh.",
+    fields: [
+      { key: "dmTtViews", label: "Video views", kind: "count", hint: "500000" },
+      { key: "dmTtReach", label: "Penonton unik (reach)", kind: "count", hint: "120000" },
+      { key: "dmTtProfile", label: "Profile views", kind: "count", hint: "8000" },
+      { key: "dmTtLikes", label: "Likes", kind: "count", hint: "30000" },
+      { key: "dmTtFollowers", label: "Total followers", kind: "count", hint: "2500" },
+    ],
+  },
+  {
     id: "ecom", title: "Selling out e-commerce", short: "E-commerce", color: "#f59e0b", icon: "box", periodKey: "dmEcomPeriod", headline: "dmEcomOmset",
-    where: "Rekap penjualan marketplace / toko online perusahaan (dashboard seller center), jumlah penjualan kuartal 1 dan kuartal 4 serta omset dan profit setahun.",
+    where: "Rekap penjualan marketplace / toko online perusahaan (dashboard seller center), jumlah penjualan tiap kuartal (Q1–Q4) serta omset dan profit setahun.",
+    quarters: ["dmEcomQ1", "dmEcomQ2", "dmEcomQ3", "dmEcomQ4"],
     fields: [
       { key: "dmEcomQ1", label: "Total penjualan Q1", kind: "count", hint: "1200" },
+      { key: "dmEcomQ2", label: "Total penjualan Q2", kind: "count", hint: "1400" },
+      { key: "dmEcomQ3", label: "Total penjualan Q3", kind: "count", hint: "1600" },
       { key: "dmEcomQ4", label: "Total penjualan Q4", kind: "count", hint: "1900" },
       { key: "dmEcomOmset", label: "Omset (Rp)", kind: "rp", hint: "850000000" },
       { key: "dmEcomProfit", label: "Profit (Rp)", kind: "rp", hint: "120000000" },
@@ -72,7 +86,7 @@ export const dmRp = (v, full) => {
 };
 export const dmFmtField = (f, v, full) => (v == null ? "—" : f.kind === "rp" ? dmRp(v, full) : f.kind === "count" ? dmFmt(v, 0) : f.kind === "pct" ? `${dmFmt(v, 2)}%` : dmFmt(v, Number.isInteger(v) ? 0 : 1));
 
-/** { [tahun]: { [key]: angka|null, periods:{gsc,leads,social,ecom}, any } } dari data buildClusterData */
+/** { [tahun]: { [key]: angka|null, periods:{gsc,leads,social,tiktok,ecom}, any } } dari data buildClusterData */
 export function dmSnapshot(data) {
   const out = {};
   for (const y of DM_YEARS) {
@@ -108,11 +122,22 @@ export function dmWarnings(group, r) {
     if (fa != null && fi != null && fa + fi === 0) w.push("Followers aktif dan tidak aktif sama-sama 0 — cek lagi angkanya.");
     if (re != null && f != null && n != null && re > f + n) w.push("Reach lebih besar dari total impression — impression seharusnya selalu ≥ reach. Cek angkanya.");
   }
+  if (group.id === "tiktok") {
+    const { dmTtViews: v, dmTtReach: re, dmTtLikes: l } = r;
+    if (v != null && re != null && re > v) w.push("Penonton unik (reach) lebih besar dari video views — biasanya sebaliknya. Cek angkanya.");
+    if (v != null && l != null && l > v) w.push("Likes lebih besar dari video views — cek lagi angkanya.");
+  }
   if (group.id === "ecom") {
     const { dmEcomOmset: o, dmEcomProfit: p, dmEcomQ1: q1, dmEcomQ4: q4 } = r;
+    const qs = [r.dmEcomQ1, r.dmEcomQ2, r.dmEcomQ3, r.dmEcomQ4].filter((x) => x != null);
+    if (qs.some((x) => x < 0)) w.push("Penjualan per kuartal tidak boleh negatif.");
+    if (qs.length >= 2 && Math.max(...qs) / Math.max(Math.min(...qs), 1) > 10) w.push("Ada kuartal yang lebih dari 10× kuartal lain — pastikan satuannya sama (unit/order) di semua kuartal.");
     if (o != null && p != null && p > o) w.push("Profit lebih besar dari omset — kemungkinan tertukar atau salah nol.");
     if (o != null && o < 0) w.push("Omset tidak boleh negatif.");
     if (q1 != null && q4 != null && q1 > 0 && q4 / q1 > 10) w.push("Penjualan Q4 lebih dari 10× Q1 — pastikan satuannya sama (unit/order) di kedua kuartal.");
   }
   return w;
 }
+
+/** kuartal terisi untuk satu tahun: [{q:1..4, v}] */
+export const dmQuarters = (r) => [1, 2, 3, 4].map((q) => ({ q, v: r[`dmEcomQ${q}`] })).filter((x) => x.v != null);
