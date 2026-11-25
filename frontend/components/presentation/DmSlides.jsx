@@ -2,7 +2,10 @@
 import React, { useState } from "react";
 import { SlideHead, Glass, IconBubble, Insight, fitSize } from "./slides.jsx";
 import { BRAND } from "../../lib/presentation/index.js";
-import { DM_GROUPS, DM_YEARS, dmSnapshot, dmWarnings, dmFmt, dmFmtField, dmRp, dmQuarters } from "../../lib/presentation/dmFigures.js";
+import { dmGroupsFor, isUgoPlant, DM_YEARS, dmSnapshot, dmWarnings, dmFmt, dmFmtField, dmRp } from "../../lib/presentation/dmFigures.js";
+
+/** kuartal terisi satu tahun: [{q:1..4, v}] (didefinisikan di sini agar tidak bergantung pada versi dmFigures.js) */
+const dmQuarters = (r) => [1, 2, 3, 4].map((q) => ({ q, v: r[`dmEcomQ${q}`] })).filter((x) => x.v != null);
 import { InfoBtn, Block, Tbl, DetailPopup, PrintCss, BarChart } from "./HrSlides.jsx";
 
 /**
@@ -34,14 +37,9 @@ export function DmDetailContent({ group, snap }) {
     if (group.id === "gsc" && r.dmGscClicks != null && r.dmGscImpr > 0) derived.push(`${y}: CTR dihitung ulang = ${dmFmt(r.dmGscClicks, 0)} klik ÷ ${dmFmt(r.dmGscImpr, 0)} tayangan = ${dmFmt((r.dmGscClicks / r.dmGscImpr) * 100, 2)}%.`);
     if (group.id === "leads" && r.dmLeadsTotal != null) derived.push(`${y}: ${dmFmt(r.dmLeadsTotal, 0)} customer ÷ 12 bulan = ${dmFmt(r.dmLeadsTotal / 12, 1)} per bulan.`);
     if (group.id === "social" && r.dmSmFolActive != null && r.dmSmFolInactive != null) { const t = r.dmSmFolActive + r.dmSmFolInactive; if (t > 0) derived.push(`${y}: total followers = ${dmFmt(r.dmSmFolActive, 0)} aktif + ${dmFmt(r.dmSmFolInactive, 0)} tidak aktif = ${dmFmt(t, 0)}; ${dmFmt((r.dmSmFolActive / t) * 100, 0)}% aktif.`); }
-    if (group.id === "tiktok") {
-      if (r.dmTtViews > 0 && r.dmTtLikes != null) derived.push(`${y}: engagement = ${dmFmt(r.dmTtLikes, 0)} likes ÷ ${dmFmt(r.dmTtViews, 0)} views = ${dmFmt((r.dmTtLikes / r.dmTtViews) * 100, 2)}%.`);
-      if (r.dmTtViews > 0 && r.dmTtReach != null) derived.push(`${y}: rata-rata ${dmFmt(r.dmTtViews / r.dmTtReach, 1)} kali tonton per penonton unik (${dmFmt(r.dmTtViews, 0)} views ÷ ${dmFmt(r.dmTtReach, 0)} penonton).`);
-    }
     if (group.id === "ecom") {
       const qs = dmQuarters(r);
       if (qs.length >= 2) { const b = qs.reduce((a, x) => (x.v > a.v ? x : a), qs[0]), lo = qs.reduce((a, x) => (x.v < a.v ? x : a), qs[0]); derived.push(`${y}: kuartal tertinggi Q${b.q} (${dmFmt(b.v, 0)}), terendah Q${lo.q} (${dmFmt(lo.v, 0)}); total ${dmFmt(qs.reduce((a, x) => a + x.v, 0), 0)} dari ${qs.length} kuartal terisi.`); }
-      if (r.dmEcomOmset > 0 && r.dmEcomProfit != null) derived.push(`${y}: margin profit = ${dmRp(r.dmEcomProfit, true)} ÷ ${dmRp(r.dmEcomOmset, true)} = ${dmFmt((r.dmEcomProfit / r.dmEcomOmset) * 100, 1)}%.`);
       if (r.dmEcomQ1 > 0 && r.dmEcomQ4 != null) derived.push(`${y}: penjualan Q4 ${dmFmt(r.dmEcomQ4, 0)} dibanding Q1 ${dmFmt(r.dmEcomQ1, 0)} = ${r.dmEcomQ4 >= r.dmEcomQ1 ? "naik" : "turun"} ${dmFmt(Math.abs((r.dmEcomQ4 - r.dmEcomQ1) / r.dmEcomQ1) * 100, 0)}%.`);
     }
     if (group.id === "social" && r.dmSmImprFol != null && r.dmSmImprNon != null) { const t = r.dmSmImprFol + r.dmSmImprNon; if (t > 0) derived.push(`${y}: total impression = ${dmFmt(r.dmSmImprFol, 0)} + ${dmFmt(r.dmSmImprNon, 0)} = ${dmFmt(t, 0)}; ${dmFmt((r.dmSmImprNon / t) * 100, 0)}% datang dari non-followers.`); }
@@ -70,11 +68,7 @@ function notes(g, r) {
     if (r.dmSmImprFol != null && r.dmSmImprNon != null && r.dmSmImprFol + r.dmSmImprNon > 0) out.push(`${dmFmt((r.dmSmImprNon / (r.dmSmImprFol + r.dmSmImprNon)) * 100, 0)}% impression datang dari non-followers.`);
     if (r.dmSmFolActive != null && r.dmSmFolInactive != null && r.dmSmFolActive + r.dmSmFolInactive > 0) out.push(`${dmFmt((r.dmSmFolActive / (r.dmSmFolActive + r.dmSmFolInactive)) * 100, 0)}% followers aktif.`);
   }
-  if (g.id === "tiktok") {
-    if (r.dmTtViews > 0 && r.dmTtLikes != null) out.push(`Engagement ${dmFmt((r.dmTtLikes / r.dmTtViews) * 100, 1)}% (likes ÷ views).`);
-  }
   if (g.id === "ecom") {
-    if (r.dmEcomOmset > 0 && r.dmEcomProfit != null) out.push(`Margin profit ${dmFmt((r.dmEcomProfit / r.dmEcomOmset) * 100, 1)}% dari omset.`);
     if (r.dmEcomQ1 > 0 && r.dmEcomQ4 != null) out.push(`Penjualan Q4 ${r.dmEcomQ4 >= r.dmEcomQ1 ? "naik" : "turun"} ${dmFmt(Math.abs((r.dmEcomQ4 - r.dmEcomQ1) / r.dmEcomQ1) * 100, 0)}% dibanding Q1.`);
   }
   return out;
@@ -172,7 +166,7 @@ function DmTrendSlide({ snap, groups, accent }) {
     { g: "gsc", key: "dmGscClicks", title: "Klik website per tahun" },
     { g: "leads", key: "dmLeadsTotal", title: "Total customer dari leads WA" },
     { g: "social", key: "dmSmReach", title: "Reach Instagram" },
-    { g: "tiktok", key: "dmTtViews", title: "Video views TikTok" },
+    { g: "tiktok", key: "dmTtReach", title: "Penonton unik TikTok" },
     { g: "ecom", key: "dmEcomOmset", title: "Omset e-commerce" },
   ].map((p) => ({ ...p, group: groups.find((x) => x.id === p.g) })).filter((p) => p.group);
   const panels = picks.map((p) => {
@@ -211,12 +205,96 @@ function DmTrendSlide({ snap, groups, accent }) {
   );
 }
 
+
+/* ------------------------------------------------------------------ UGO: marketing principal */
+
+const UGO_COLORS = ["#06b6d4", "#a78bfa", "#f59e0b", "#f472b6", "#34d399"];
+const YCH = ["#94a3b8", "#F5B83D"];
+
+function UgoKeySlide({ snap, group, accent }) {
+  const [open, setOpen] = useState(null);
+  const ys = DM_YEARS.filter((y) => snap[y].any);
+  const fields = group.fields.filter((f) => ys.some((y) => snap[y][f.key] != null));
+  const cur = fields.find((f) => f.key === open);
+  const ly = ys[ys.length - 1];
+  const chipColor = (i) => (i === ys.length - 1 ? accent || GOOD : YCH[Math.max(0, YCH.length - (ys.length - 1 - i))] || YCH[0]);
+  return (
+    <div>
+      <SlideHead color={accent} eyebrow="Marketing" title="Marketing Principal" sub="Lima poin kerja marketing principal ke distributor, dibanding tahun sebelumnya. Klik ⓘ untuk sumber dan rinciannya." />
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gridTemplateRows: "1fr 1fr", gap: 14, minHeight: 0 }}>
+        <PrintCss />
+        {fields.map((f, i) => {
+          const col = UGO_COLORS[i % UGO_COLORS.length], v = snap[ly][f.key], d = delta(snap, f, ly);
+          const span = fields.length === 5 ? (i < 3 ? 2 : 3) : fields.length === 4 ? 3 : 2;
+          return (
+            <Glass key={f.key} accent={col} style={{ gridColumn: `span ${span}`, padding: "12px 18px", gap: 6, justifyContent: "flex-start" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 30, height: 30, borderRadius: 99, background: `${col}22`, border: `1px solid ${col}66`, color: col, display: "grid", placeItems: "center", fontWeight: 900, fontSize: 15 }}>{f.no}</div>
+                <div style={{ flex: 1, minWidth: 0, fontSize: 17, fontWeight: 800, lineHeight: 1.2 }}>{f.name}</div>
+                <InfoBtn onClick={() => setOpen(f.key)} color={col} />
+              </div>
+              <div style={{ fontSize: 12.5, color: BRAND.muted, lineHeight: 1.35 }}>{f.desc}</div>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+                <span style={{ fontSize: fitSize(dmFmtField(f, v), 44, 28), fontWeight: 850, letterSpacing: -1.5, lineHeight: 1 }}>{v == null ? "—" : dmFmtField(f, v)}</span>
+                {d && <span style={{ fontSize: 13, fontWeight: 800, color: d.good ? GOOD : BAD, background: `${d.good ? GOOD : BAD}1f`, borderRadius: 99, padding: "2px 10px", whiteSpace: "nowrap" }}>{d.text} vs {d.py}</span>}
+              </div>
+              <div style={{ fontSize: 12, color: BRAND.muted, lineHeight: 1.3 }}>{f.label}</div>
+              {ys.length > 1 && (
+                <div style={{ display: "flex", gap: 6, marginTop: "auto" }}>
+                  {ys.map((y, k) => (
+                    <div key={y} style={{ flex: 1, minWidth: 0, background: `${chipColor(k)}14`, border: `1px solid ${chipColor(k)}55`, borderRadius: 9, padding: "2px 8px" }}>
+                      <div style={{ fontSize: 10.5, letterSpacing: 1.4, fontWeight: 800, color: chipColor(k) }}>{y}</div>
+                      <div style={{ fontSize: 15, fontWeight: 850, lineHeight: 1.1 }}>{snap[y][f.key] == null ? "—" : dmFmtField(f, snap[y][f.key])}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Glass>
+          );
+        })}
+        {cur && <DetailPopup title={`${cur.no}. ${cur.name}`} sub="Sumber dan rincian angka" onClose={() => setOpen(null)}><DmDetailContent group={{ ...group, fields: [cur] }} snap={snap} /></DetailPopup>}
+      </div>
+    </div>
+  );
+}
+
+function UgoTrendSlide({ snap, group, accent }) {
+  const [open, setOpen] = useState(null);
+  const panels = group.fields.map((f, i) => ({ f, col: UGO_COLORS[i % UGO_COLORS.length], ys: DM_YEARS.filter((y) => snap[y][f.key] != null) })).filter((p) => p.ys.length);
+  const cur = panels.find((p) => p.f.key === open);
+  return (
+    <div>
+      <SlideHead color={accent} eyebrow="Marketing" title="Tren marketing principal" sub="Perbandingan lima poin dari tahun ke tahun." />
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gridTemplateRows: "1fr 1fr", gap: 12, minHeight: 0 }}>
+        <PrintCss />
+        {panels.map((p) => (
+          <Glass key={p.f.key} style={{ padding: "10px 16px", gap: 4 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ flex: 1, fontSize: 15, fontWeight: 800 }}>{p.f.no}. {p.f.name}</div>
+              <InfoBtn onClick={() => setOpen(p.f.key)} color={p.col} />
+            </div>
+            <BarChart w={400} h={188} labels={p.ys.map(String)} series={[{ name: p.f.name, color: p.col, showValues: true, values: p.ys.map((y) => snap[y][p.f.key]) }]} fmtTick={(v) => dmFmt(v, 0)} fmtVal={(v) => dmFmt(v, 0)} />
+          </Glass>
+        ))}
+        {cur && <DetailPopup title={`${cur.f.no}. ${cur.f.name}`} sub="Sumber dan rincian angka" onClose={() => setOpen(null)}><DmDetailContent group={{ ...group, fields: [cur.f] }} snap={snap} /></DetailPopup>}
+      </div>
+    </div>
+  );
+}
+
 /** [] bila belum ada angka yang diisi. Dipanggil ClusterDeck (klaster DIGITAL_MARKETING) setelah slide indikator. */
 export function buildDmSlides(data, cfg = {}) {
   const snap = dmSnapshot(data);
-  const groups = DM_GROUPS.filter((g) => lastYearWith(snap, g) != null);
+  const groups = dmGroupsFor(cfg.plantName).filter((g) => lastYearWith(snap, g) != null);
   if (!groups.length) return [];
   const multi = DM_YEARS.filter((y) => snap[y].any).length >= 2;
+  if (isUgoPlant(cfg.plantName)) {
+    const g = groups[0];
+    return [
+      { id: "dm-key", label: "Marketing principal", node: <UgoKeySlide snap={snap} group={g} accent={cfg.accent} /> },
+      ...(multi ? [{ id: "dm-trend", label: "Tren principal", node: <UgoTrendSlide snap={snap} group={g} accent={cfg.accent} /> }] : []),
+    ];
+  }
   return [
     { id: "dm-key", label: "Poin penting", node: <DmKeySlide snap={snap} groups={groups} accent={cfg.accent} /> },
     ...(multi ? [{ id: "dm-trend", label: "Tren angka", node: <DmTrendSlide snap={snap} groups={groups} accent={cfg.accent} /> }] : []),

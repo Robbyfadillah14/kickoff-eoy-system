@@ -5,7 +5,7 @@
 
 export const DM_YEARS = [2024, 2025, 2026];
 
-/** kind: count (bilangan bulat, "12.345" = dua belas ribu), rp (rupiah penuh), dec (desimal, koma/titik), pct (persen) */
+/** kind: count (bilangan bulat, "12.345" = dua belas ribu), dec (desimal, koma/titik), pct (persen) */
 export const DM_GROUPS = [
   {
     id: "gsc", title: "Google Search Console (website)", short: "Website", color: "#06b6d4", icon: "chart", periodKey: "dmGscPeriod", headline: "dmGscClicks",
@@ -37,19 +37,17 @@ export const DM_GROUPS = [
     ],
   },
   {
-    id: "tiktok", title: "Insight TikTok PT. Ekasurya Inout Indonesia", short: "TikTok", color: "#a78bfa", icon: "star", periodKey: "dmTtPeriod", headline: "dmTtViews",
+    id: "tiktok", title: "Insight TikTok PT. Ekasurya Inout Indonesia", short: "TikTok", color: "#a78bfa", icon: "star", periodKey: "dmTtPeriod", headline: "dmTtReach",
     where: "TikTok Studio / TikTok Analytics akun bisnis → Overview, rentang tanggal setahun penuh.",
     fields: [
-      { key: "dmTtViews", label: "Video views", kind: "count", hint: "500000" },
       { key: "dmTtReach", label: "Penonton unik (reach)", kind: "count", hint: "120000" },
-      { key: "dmTtProfile", label: "Profile views", kind: "count", hint: "8000" },
       { key: "dmTtLikes", label: "Likes", kind: "count", hint: "30000" },
       { key: "dmTtFollowers", label: "Total followers", kind: "count", hint: "2500" },
     ],
   },
   {
     id: "ecom", title: "Selling out e-commerce", short: "E-commerce", color: "#f59e0b", icon: "box", periodKey: "dmEcomPeriod", headline: "dmEcomOmset",
-    where: "Rekap penjualan marketplace / toko online perusahaan (dashboard seller center), jumlah penjualan tiap kuartal (Q1–Q4) serta omset dan profit setahun.",
+    where: "Rekap penjualan marketplace / toko online perusahaan (dashboard seller center), jumlah penjualan tiap kuartal (Q1–Q4) serta omset setahun.",
     quarters: ["dmEcomQ1", "dmEcomQ2", "dmEcomQ3", "dmEcomQ4"],
     fields: [
       { key: "dmEcomQ1", label: "Total penjualan Q1", kind: "count", hint: "1200" },
@@ -57,12 +55,28 @@ export const DM_GROUPS = [
       { key: "dmEcomQ3", label: "Total penjualan Q3", kind: "count", hint: "1600" },
       { key: "dmEcomQ4", label: "Total penjualan Q4", kind: "count", hint: "1900" },
       { key: "dmEcomOmset", label: "Omset (Rp)", kind: "rp", hint: "850000000" },
-      { key: "dmEcomProfit", label: "Profit (Rp)", kind: "rp", hint: "120000000" },
     ],
   },
 ];
 
-export const DM_ALL_FIELDS = DM_GROUPS.flatMap((g) => g.fields);
+/** UGO Indonesia: kebutuhan marketing principal (permintaan Pak Dicky). 5 poin, tiap poin satu angka per tahun. */
+export const DM_UGO_GROUP = {
+  id: "ugo", title: "Marketing Principal", short: "Principal", color: "#f97316", icon: "star", periodKey: "dmUgoPeriod", headline: "dmUgoEndUser",
+  where: "Rekap marketing principal ke distributor UGO (laporan distributor / data penjualan), jumlah setahun penuh.",
+  fields: [
+    { key: "dmUgoEndUser", no: 1, name: "Market Access", desc: "Membantu distributor mendapatkan akses penjualan melalui kelengkapan dokumen.", label: "Jumlah end user yang dihasilkan distributor", kind: "count", hint: "120" },
+    { key: "dmUgoSerapan", no: 2, name: "Product Introduction", desc: "Melakukan presentasi dan memperkenalkan produk principal ke distributor.", label: "Total serapan produk ke masing-masing distributor yang dijual ke end user", kind: "count", hint: "3500" },
+    { key: "dmUgoTrial", no: 3, name: "Product Trial & Evaluation", desc: "Mendukung proses uji coba dan evaluasi produk.", label: "Jumlah trial/error dan improvement produk", kind: "count", hint: "18" },
+    { key: "dmUgoOpp", no: 4, name: "Sales Opportunity", desc: "Mengidentifikasi kebutuhan produk, potensi kuantitas, dan estimasi nilai transaksi.", label: "Jumlah peluang penjualan yang dihasilkan dari marketing produk", kind: "count", hint: "45" },
+    { key: "dmUgoReal", no: 5, name: "Sales Realization", desc: "Memantau apakah aktivitas tersebut akhirnya menghasilkan pembelian melalui distributor.", label: "Jumlah pembelian baru dari end user masing-masing distributor", kind: "count", hint: "60" },
+  ],
+};
+
+/** kelompok isian & slide sesuai plant: UGO memakai marketing principal, plant lain memakai angka digital marketing */
+export const isUgoPlant = (plantName) => /\bugo\b/i.test(String(plantName || ""));
+export const dmGroupsFor = (plantName) => (isUgoPlant(plantName) ? [DM_UGO_GROUP] : DM_GROUPS);
+
+export const DM_ALL_FIELDS = [...DM_GROUPS, DM_UGO_GROUP].flatMap((g) => g.fields);
 
 /** angka dari ketikan staf; null bila kosong / bukan angka */
 export function dmNum(v, kind = "dec") {
@@ -86,7 +100,7 @@ export const dmRp = (v, full) => {
 };
 export const dmFmtField = (f, v, full) => (v == null ? "—" : f.kind === "rp" ? dmRp(v, full) : f.kind === "count" ? dmFmt(v, 0) : f.kind === "pct" ? `${dmFmt(v, 2)}%` : dmFmt(v, Number.isInteger(v) ? 0 : 1));
 
-/** { [tahun]: { [key]: angka|null, periods:{gsc,leads,social,tiktok,ecom}, any } } dari data buildClusterData */
+/** { [tahun]: { [key]: angka|null, periods:{gsc,leads,social}, filled } } dari data buildClusterData */
 export function dmSnapshot(data) {
   const out = {};
   for (const y of DM_YEARS) {
@@ -94,7 +108,7 @@ export function dmSnapshot(data) {
     const m = yy?.byDept?.DIG_MKT?.metrics || yy?.metrics || {};
     const row = { periods: {}, any: false };
     for (const f of DM_ALL_FIELDS) { const n = dmNum(m[f.key], f.kind); row[f.key] = n; if (n != null) row.any = true; }
-    for (const g of DM_GROUPS) { const p = m[g.periodKey]; row.periods[g.id] = p && String(p).trim() ? String(p).trim() : ""; }
+    for (const g of [...DM_GROUPS, DM_UGO_GROUP]) { const p = m[g.periodKey]; row.periods[g.id] = p && String(p).trim() ? String(p).trim() : ""; }
     out[y] = row;
   }
   return out;
@@ -122,19 +136,18 @@ export function dmWarnings(group, r) {
     if (fa != null && fi != null && fa + fi === 0) w.push("Followers aktif dan tidak aktif sama-sama 0 — cek lagi angkanya.");
     if (re != null && f != null && n != null && re > f + n) w.push("Reach lebih besar dari total impression — impression seharusnya selalu ≥ reach. Cek angkanya.");
   }
-  if (group.id === "tiktok") {
-    const { dmTtViews: v, dmTtReach: re, dmTtLikes: l } = r;
-    if (v != null && re != null && re > v) w.push("Penonton unik (reach) lebih besar dari video views — biasanya sebaliknya. Cek angkanya.");
-    if (v != null && l != null && l > v) w.push("Likes lebih besar dari video views — cek lagi angkanya.");
-  }
   if (group.id === "ecom") {
-    const { dmEcomOmset: o, dmEcomProfit: p, dmEcomQ1: q1, dmEcomQ4: q4 } = r;
+    const { dmEcomOmset: o, dmEcomQ1: q1, dmEcomQ4: q4 } = r;
     const qs = [r.dmEcomQ1, r.dmEcomQ2, r.dmEcomQ3, r.dmEcomQ4].filter((x) => x != null);
     if (qs.some((x) => x < 0)) w.push("Penjualan per kuartal tidak boleh negatif.");
     if (qs.length >= 2 && Math.max(...qs) / Math.max(Math.min(...qs), 1) > 10) w.push("Ada kuartal yang lebih dari 10× kuartal lain — pastikan satuannya sama (unit/order) di semua kuartal.");
-    if (o != null && p != null && p > o) w.push("Profit lebih besar dari omset — kemungkinan tertukar atau salah nol.");
     if (o != null && o < 0) w.push("Omset tidak boleh negatif.");
     if (q1 != null && q4 != null && q1 > 0 && q4 / q1 > 10) w.push("Penjualan Q4 lebih dari 10× Q1 — pastikan satuannya sama (unit/order) di kedua kuartal.");
+  }
+  if (group.id === "ugo") {
+    const { dmUgoOpp: o, dmUgoReal: p } = r;
+    if (o != null && p != null && o > 0 && p > o * 3) w.push("Pembelian baru jauh lebih banyak dari peluang penjualan — cek apakah angkanya tertukar.");
+    for (const f of group.fields) if (r[f.key] != null && r[f.key] < 0) w.push(`${f.name} tidak boleh negatif.`);
   }
   return w;
 }
