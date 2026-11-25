@@ -95,8 +95,8 @@ function LiveContent() {
     if (cluster !== "COMMERCIAL") return "OMZET";
     const sales = normalized
       .filter((r) => (!plantId || (r.plantId || r.plant?.id) === plantId) && resolveDepartment(r.department)?.cluster === "COMMERCIAL")
-      .sort((a, b) => Number(b.year) - Number(a.year));
-    const t = sales.map((r) => r.metricsJson?.salesType).find(Boolean);
+      .sort((a, b) => (Date.parse(b.updatedAt) || 0) - (Date.parse(a.updatedAt) || 0) || Number(b.year) - Number(a.year));
+    const t = sales.map((r) => r.metricsJson?.salesType || r.salesType).find(Boolean);
     return String(t || "OMZET").toUpperCase() === "PROFIT" ? "PROFIT" : "OMZET";
   }, [normalized, cluster, plantId, plantName]);
   const deckMode = mode || detectedMode;

@@ -71,7 +71,7 @@ function DeptContent() {
     [reports, deptById]
   );
   const mode = useMemo(() => {
-    const t = normalized.filter((r) => resolveDepartment(r.department)?.code === "SALES").sort((a, b) => Number(b.year) - Number(a.year)).map((r) => r.metricsJson?.salesType).find(Boolean);
+    const t = normalized.filter((r) => resolveDepartment(r.department)?.code === "SALES").sort((a, b) => (Date.parse(b.updatedAt) || 0) - (Date.parse(a.updatedAt) || 0) || Number(b.year) - Number(a.year)).map((r) => r.metricsJson?.salesType || r.salesType).find(Boolean);
     return String(t || "OMZET").toUpperCase() === "PROFIT" ? "PROFIT" : "OMZET";
   }, [normalized]);
   const plantName = plants.find((p) => String(p.id) === String(plantId))?.name || "";
