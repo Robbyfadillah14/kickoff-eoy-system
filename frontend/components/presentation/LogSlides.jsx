@@ -237,32 +237,33 @@ export function LogDetailContent({ kind, ds }) {
 /* ------------------------------------------------------------------ elemen */
 
 function KeyCard({ icon, color, label, value, status, statusText, sub, chip, chipColor, spark, years, onInfo }) {
+  const multi = years?.length > 1;
+  const yearsRow = multi && (
+    <div style={{ display: "flex", gap: 8, flex: 1, minWidth: 0, justifyContent: "flex-end" }}>
+      {years.map((x) => (
+        <div key={x.y} style={{ flex: "1 1 0", maxWidth: 150, minWidth: 0, background: `${x.c}14`, border: `1px solid ${x.c}55`, borderRadius: 10, padding: "3px 10px" }}>
+          <div style={{ fontSize: 11, letterSpacing: 1.5, fontWeight: 800, color: x.c, whiteSpace: "nowrap" }}>{x.y}{x.note ? <span style={{ color: BRAND.muted, fontWeight: 600, letterSpacing: 0 }}> {x.note}</span> : null}</div>
+          <div style={{ fontSize: 17, fontWeight: 850, lineHeight: 1.15, whiteSpace: "nowrap" }}>{x.v}</div>
+        </div>
+      ))}
+    </div>
+  );
   return (
-    <Glass accent={color} style={{ padding: years?.length > 1 ? "8px 20px" : "12px 22px", gap: years?.length > 1 ? 3 : 6 }}>
+    <Glass accent={color} style={{ padding: multi ? "10px 20px" : "12px 22px", gap: multi ? 6 : 6 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-        <IconBubble name={icon} color={color} size={years?.length > 1 ? 32 : 42} />
+        <IconBubble name={icon} color={color} size={multi ? 32 : 42} />
         <div style={{ flex: 1, fontSize: 14, letterSpacing: 2.5, fontWeight: 800, color: BRAND.muted, textTransform: "uppercase", lineHeight: 1.25 }}>{label}</div>
         {status != null && <span style={{ fontSize: 13, fontWeight: 800, color, background: `${color}1f`, border: `1px solid ${color}66`, borderRadius: 99, padding: "4px 12px", whiteSpace: "nowrap" }}>{statusText}</span>}
         <InfoBtn onClick={onInfo} color={color} />
       </div>
-      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 12 }}>
-        <div style={{ fontSize: fitSize(value, years?.length > 1 ? 40 : 54, 30), fontWeight: 850, letterSpacing: -2, lineHeight: 1, whiteSpace: "nowrap" }}>{value}</div>
-        {spark}
+      <div style={{ display: "flex", alignItems: multi ? "center" : "flex-end", justifyContent: "space-between", gap: 14 }}>
+        <div style={{ fontSize: fitSize(value, multi ? 40 : 54, 28), fontWeight: 850, letterSpacing: -2, lineHeight: 1, whiteSpace: "nowrap" }}>{value}</div>
+        {multi ? yearsRow : spark}
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         {chip && <span style={{ fontSize: 14, fontWeight: 800, color: chipColor || color, background: `${chipColor || color}1f`, borderRadius: 99, padding: "3px 12px", whiteSpace: "nowrap" }}>{chip}</span>}
         <span style={{ fontSize: 15, color: BRAND.muted, lineHeight: 1.35 }}>{sub}</span>
       </div>
-      {years?.length > 1 && (
-        <div style={{ display: "flex", gap: 8, flexWrap: "nowrap", borderTop: `1px solid ${BRAND.line || "#ffffff1a"}`, paddingTop: 4 }}>
-          {years.map((x) => (
-            <div key={x.y} style={{ flex: 1, minWidth: 0, background: `${x.c}14`, border: `1px solid ${x.c}55`, borderRadius: 10, padding: "2px 10px" }}>
-              <div style={{ fontSize: 11, letterSpacing: 1.5, fontWeight: 800, color: x.c }}>{x.y}{x.note ? <span style={{ color: BRAND.muted, fontWeight: 600, letterSpacing: 0 }}> {x.note}</span> : null}</div>
-              <div style={{ fontSize: 17, fontWeight: 850, lineHeight: 1.1, whiteSpace: "nowrap" }}>{x.v}</div>
-            </div>
-          ))}
-        </div>
-      )}
     </Glass>
   );
 }
