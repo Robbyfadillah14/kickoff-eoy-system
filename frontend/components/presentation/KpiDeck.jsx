@@ -5,7 +5,8 @@ import { DashboardSlide, PanelsSlide } from "./KpiDashboard.jsx";
 import { CoverSlide, SlideHead, Glass, Eyebrow, ArcGauge, YearBars, Pill, Empty, JourneySlide, FutureSlide, ClosingSlide, TrendSlide, StatTile, ptText, deltaColor, pctText } from "./slides.jsx";
 import { buildClusterData, collectByDept, resolveDepartment, feedersOf, ownersOf, phaseOf, toNum, formatRupiah, BRAND, phaseColor, statusOf, isEmptyValue } from "../../lib/presentation/index.js";
 import { buildHrSlides } from "./HrSlides.jsx";
-import { buildLogSlides } from "./LogSlides.jsx";
+import { buildLogSlides, withLogBackfill } from "./LogSlides.jsx";
+import { buildNotesSlides } from "./NotesSlide.jsx";
 import { DEPT_KPIS, OUTLOOK_KEYS, kpiMatrix, scoreOf, excelItems, clip } from "../../lib/presentation/kpi.js";
 
 const ACTUAL_YEARS = [2024, 2025, 2026];
@@ -125,7 +126,8 @@ export function moneyPanels(y, solo) {
   return out;
 }
 
-export function buildKpiSlides(data, cfg, { plantName = "", deptCode = null } = {}) {
+export function buildKpiSlides(rawData, cfg, { plantName = "", deptCode = null } = {}) {
+  const data = withLogBackfill(rawData); // kolom KPI Admin Logistic 2024/2025 diisi dari Excel bila laporan tahun itu belum menyimpannya
   if (data.needsPlant) return [{ id: "plant", label: "Pilih plant", node: <div style={{ height: "100%", display: "grid", placeItems: "center" }}><Empty hint="Data berisi lebih dari satu plant — pilih plant dulu agar angka tidak tercampur.">Plant belum dipilih</Empty></div> }];
 
   const feeders = feedersOf(data.cluster).filter((d) => DEPT_KPIS[d.code] && (!deptCode || d.code === deptCode));
@@ -142,6 +144,7 @@ export function buildKpiSlides(data, cfg, { plantName = "", deptCode = null } = 
 
   // departemen yang punya isi (KPI form ATAU Excel) di tahun manapun
   const deptSlides = [];
+  const logSlides = [];
   for (const d of feeders) {
     const m = kpiMatrix(data, d.code);
     let excelYear = null, items = [];
@@ -152,7 +155,7 @@ export function buildKpiSlides(data, cfg, { plantName = "", deptCode = null } = 
     if (m.hasData) deptSlides.push({ id: `d-${d.code}`, label: d.short, node: <DeptMatrixSlide dept={d} matrix={m} accent={cfg.accent} support={!ownCluster(d)} /> });
     if (items.length) deptSlides.push({ id: `x-${d.code}`, label: `${d.short} (Excel)`, node: <ExcelSlide dept={d} year={excelYear} items={items} accent={cfg.accent} /> });
     if (d.code === "HR_MR") deptSlides.push(...buildHrSlides(data, { accent: cfg.accent }));
-    if (d.code === "ADM_LOG") deptSlides.push(...buildLogSlides(data, { accent: cfg.accent }));
+    if (d.code === "ADM_LOG") logSlides.push(...buildLogSlides(data, { accent: cfg.accent }));
   }
 
   // perjalanan: teks evaluasi per departemen + RGT dari laporan
@@ -185,6 +188,7 @@ export function buildKpiSlides(data, cfg, { plantName = "", deptCode = null } = 
       if (clean.length) { badInfo = { year: yr, list: clean }; break; }
     }
   }
+  const notesSlides = buildNotesSlides(data, { solo, accent: cfg.accent });
   const bad = badInfo ? [{ id: "baddebt", label: "Bad debt", node: <BadDebtSlide year={badInfo.year} list={badInfo.list} accent={cfg.accent} /> }] : [];
   // panel per departemen (klaster) / per indikator (satu divisi)
   const panelItems = solo
@@ -213,7 +217,7 @@ export function buildKpiSlides(data, cfg, { plantName = "", deptCode = null } = 
     { id: "cover", label: "Cover", node: <CoverSlide accent={cfg.accent} eyebrow={cfg.eyebrow} title={`${solo ? solo.name : cfg.title} 2024–2027`} subtitle={cfg.tagline} meta={[plantName || "Plant terpilih", "Run 2024", "Grow 2025", "Transform 2026", "Future 2027"]} /> },
   ];
 
-  if (!deptSlides.length) {
+  if (!deptSlides.length && !logSlides.length && !notesSlides.length) {
     slides.push({ id: "empty", label: "Data", node: <div><SlideHead color={cfg.accent} eyebrow="Data" title={cfg.title} /><Empty hint="Belum ada form departemen di klaster ini yang terisi. Isi lewat form (manual atau upload Excel) lalu muat ulang." /></div> });
   } else {
     slides.push(
@@ -223,7 +227,8 @@ export function buildKpiSlides(data, cfg, { plantName = "", deptCode = null } = 
           completeness={Object.fromEntries(ALL_YEARS.map((yr) => [yr, data.completeness[yr] || null]))}
           filledNote={solo ? `Laporan ${ey} ${y[ey].byDept[solo.code] ? "sudah diisi" : "belum diisi"}.` : `${data.completeness[ey]?.filled ?? 0}/${data.completeness[ey]?.total ?? 0} departemen klaster mengisi laporan ${ey}.`} /> },
       { id: "panels", label: solo ? "Per indikator" : "Per departemen", node: <PanelsSlide eyebrow={`${solo ? solo.name : cfg.title} · 2024–2026`} title={solo ? "Capaian per indikator" : "Capaian per departemen"} items={panelItems} /> },
-      ...moneySlide, ...deptSlides, ...bad,
+      ...logSlides,
+      ...moneySlide, ...deptSlides, ...bad, ...notesSlides,
     );
   }
 
