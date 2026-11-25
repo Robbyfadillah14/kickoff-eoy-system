@@ -2,8 +2,8 @@
 import React, { useState } from "react";
 import { SlideHead, Glass, IconBubble, Sparkline, Insight, fitSize } from "./slides.jsx";
 import { PrintCss, InfoBtn, Block, Tbl, DetailPopup, BarChart } from "./HrSlides.jsx";
-import { BRAND } from "../../lib/presentation/index.js";
-import { fmtInt, fmtDec, MONTH_LABEL, flowCompare, cancelStatus, targetText } from "../../lib/presentation/logisticsExcel.js";
+import { BRAND, feedersOf, isEmptyValue } from "../../lib/presentation/index.js";
+import { fmtInt, fmtDec, MONTH_LABEL, flowCompare, cancelStatus, targetText, logFieldsFrom } from "../../lib/presentation/logisticsExcel.js";
 
 /**
  * Slide Admin Logistic dari file Excel (form.logData): poin penting, tren DO/INV, cancel invoice & alasannya.
@@ -55,6 +55,37 @@ export function logOf(data) {
   const warnings = [...new Set(found.flatMap((f) => (Array.isArray(f.l.warnings) ? f.l.warnings : [])))];
   return { ...base, flow, cancel, reasons, years, warnings };
 }
+
+/**
+ * Isi kolom KPI Admin Logistic (matriks / panel) untuk tahun yang laporannya belum menyimpan angkanya,
+ * diambil dari data Excel gabungan. Nilai yang sudah diisi manual di laporan tahun itu TIDAK ditimpa.
+ */
+export function withLogBackfill(data) {
+  const ds = logOf(data);
+  if (!ds || !data?.years) return data;
+  const dept = Object.values(data.years).map((b) => b?.byDept?.ADM_LOG?.dept).find(Boolean) || feedersOf(data.cluster).find((d) => d.code === "ADM_LOG");
+  if (!dept) return data;
+  const years = { ...data.years };
+  let changed = false;
+  for (const yr of [2024, 2025, 2026]) {
+    const b = years[yr];
+    if (!b) continue;
+    const fields = logFieldsFrom(ds, yr);
+    const keys = Object.keys(fields);
+    if (!keys.length) continue;
+    const cur = b.byDept?.ADM_LOG;
+    const metrics = { ...(cur?.metrics || {}) };
+    const add = keys.filter((k) => isEmptyValue(metrics[k]));
+    if (!add.length) continue;
+    for (const k of add) metrics[k] = fields[k];
+    years[yr] = { ...b, hasData: true, byDept: { ...b.byDept, ADM_LOG: { ...(cur || {}), dept, report: cur?.report, metrics, filledKeys: [...(cur?.filledKeys || []), ...add] } } };
+    changed = true;
+  }
+  return changed ? { ...data, years } : data;
+}
+
+const YC = ["#94a3b8", "#F5B83D"];
+const yearChips = (items, latestColor) => items.map((x, i) => ({ ...x, c: i === items.length - 1 ? latestColor : YC[Math.max(0, YC.length - (items.length - 1 - i))] || YC[0] }));
 
 const cancelYears = (ds) => Object.keys(ds?.cancel?.byYear || {}).map(Number).sort();
 const cancelUpTo = (c, upTo) => c.months.filter((x) => x.m <= upTo).reduce((s, x) => s + x.tot, 0);
@@ -156,23 +187,33 @@ export function LogDetailContent({ kind, ds }) {
 
 /* ------------------------------------------------------------------ elemen */
 
-function KeyCard({ icon, color, label, value, status, statusText, sub, chip, chipColor, spark, onInfo }) {
+function KeyCard({ icon, color, label, value, status, statusText, sub, chip, chipColor, spark, years, onInfo }) {
   return (
-    <Glass accent={color} style={{ padding: "12px 22px", gap: 6 }}>
+    <Glass accent={color} style={{ padding: years?.length > 1 ? "8px 20px" : "12px 22px", gap: years?.length > 1 ? 3 : 6 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-        <IconBubble name={icon} color={color} size={42} />
+        <IconBubble name={icon} color={color} size={years?.length > 1 ? 32 : 42} />
         <div style={{ flex: 1, fontSize: 14, letterSpacing: 2.5, fontWeight: 800, color: BRAND.muted, textTransform: "uppercase", lineHeight: 1.25 }}>{label}</div>
         {status != null && <span style={{ fontSize: 13, fontWeight: 800, color, background: `${color}1f`, border: `1px solid ${color}66`, borderRadius: 99, padding: "4px 12px", whiteSpace: "nowrap" }}>{statusText}</span>}
         <InfoBtn onClick={onInfo} color={color} />
       </div>
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 12 }}>
-        <div style={{ fontSize: fitSize(value, 54, 36), fontWeight: 850, letterSpacing: -2, lineHeight: 1, whiteSpace: "nowrap" }}>{value}</div>
+        <div style={{ fontSize: fitSize(value, years?.length > 1 ? 40 : 54, 30), fontWeight: 850, letterSpacing: -2, lineHeight: 1, whiteSpace: "nowrap" }}>{value}</div>
         {spark}
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         {chip && <span style={{ fontSize: 14, fontWeight: 800, color: chipColor || color, background: `${chipColor || color}1f`, borderRadius: 99, padding: "3px 12px", whiteSpace: "nowrap" }}>{chip}</span>}
         <span style={{ fontSize: 15, color: BRAND.muted, lineHeight: 1.35 }}>{sub}</span>
       </div>
+      {years?.length > 1 && (
+        <div style={{ display: "flex", gap: 8, flexWrap: "nowrap", borderTop: `1px solid ${BRAND.line || "#ffffff1a"}`, paddingTop: 4 }}>
+          {years.map((x) => (
+            <div key={x.y} style={{ flex: 1, minWidth: 0, background: `${x.c}14`, border: `1px solid ${x.c}55`, borderRadius: 10, padding: "2px 10px" }}>
+              <div style={{ fontSize: 11, letterSpacing: 1.5, fontWeight: 800, color: x.c }}>{x.y}{x.note ? <span style={{ color: BRAND.muted, fontWeight: 600, letterSpacing: 0 }}> {x.note}</span> : null}</div>
+              <div style={{ fontSize: 17, fontWeight: 850, lineHeight: 1.1, whiteSpace: "nowrap" }}>{x.v}</div>
+            </div>
+          ))}
+        </div>
+      )}
     </Glass>
   );
 }
@@ -197,7 +238,8 @@ function LogKeySlide({ ds, accent }) {
     cards.push({ cid: k, kind: k, icon: k === "do" ? "box" : "file", color: k === "do" ? BRAND.cyan : "#a78bfa", label: `${name} terbit · ${per}`, value: fmtInt(c.curSum),
       sub: c.prev ? `${c.py} periode sama: ${fmtInt(c.prevSum)} · rata-rata ${fmtDec(c.avg, 0)}/bln` : `rata-rata ${fmtDec(c.avg, 0)}/bln`,
       chip: c.pct == null ? null : `${sgn(c.pct)} vs ${c.py}`, chipColor: c.pct >= 0 ? GOOD : WARN,
-      spark: <Sparkline values={c.cur.months.map((x) => x.v)} color={k === "do" ? BRAND.cyan : "#a78bfa"} w={200} h={52} /> });
+      years: yearChips(Object.keys(ds.flow[k].byYear).map(Number).sort().map((yy) => { const b = ds.flow[k].byYear[yy]; return { y: yy, v: fmtInt(b.total), note: b.partial ? `s/d ${b.lastLabel}` : "" }; }), k === "do" ? BRAND.cyan : "#a78bfa"),
+      spark: <Sparkline values={c.cur.months.map((x) => x.v)} color={k === "do" ? BRAND.cyan : "#a78bfa"} w={180} h={40} /> });
     facts.push(`${name} ${per}: ${fmtInt(c.curSum)}${c.pct == null ? "" : `, ${c.pct >= 0 ? "naik" : "turun"} ${fmtDec(Math.abs(c.pct))}% dari periode sama ${c.py}`}.`);
   }
 
@@ -210,7 +252,8 @@ function LogKeySlide({ ds, accent }) {
       status: s?.ok, statusText: s?.ok ? (c.partial ? "✓ Dalam target" : "✓ Tercapai") : "✕ Melewati target",
       sub: `${c.int} internal · ${c.ext} eksternal · target maks. ${c.target?.total != null ? c.target.total : [c.target?.internal, c.target?.external].filter((x) => x != null).join(" / ")}`,
       chip: g == null ? null : `${sgn(g, 0)} vs ${py}`, chipColor: g != null && g <= 0 ? GOOD : WARN,
-      spark: <Sparkline values={c.months.map((x) => x.tot)} color={color} w={200} h={52} /> });
+      years: yearChips(cy.map((yy) => { const b = ds.cancel.byYear[yy]; return { y: yy, v: String(b.total), note: b.partial ? `s/d ${b.lastLabel}` : "" }; }), color),
+      spark: <Sparkline values={c.months.map((x) => x.tot)} color={color} w={180} h={40} /> });
     facts.push(`Cancel invoice ${y}: ${c.total} dokumen (${c.int} internal, ${c.ext} eksternal)${s?.ok ? ", masih dalam target" : s?.ok === false ? ", melewati target" : ""}${c.partial ? `; data sampai ${c.lastLabel}, masih berjalan` : ""}.`);
   }
 
@@ -245,9 +288,11 @@ function LogTrendSlide({ ds, accent }) {
   for (const k of ["do", "inv"]) {
     const f = ds.flow?.[k]; if (!f) continue;
     const ys = Object.keys(f.byYear).map(Number).sort();
-    const sty = (i) => (ys.length - 1 - i === 0 ? { color: k === "do" ? BRAND.cyan : "#a78bfa", opacity: 1 } : ys.length - 1 - i === 1 ? { color: k === "do" ? BRAND.cyan : "#a78bfa", opacity: 0.5 } : { color: BRAND.muted, opacity: 0.4 });
+    // warna beda jelas per tahun (bukan sekadar pudar): terlama = abu terang, tengah = kuning, terbaru = warna panel
+    const YEAR_COLORS = ["#94a3b8", "#F5B83D"];
+    const sty = (i) => { const back = ys.length - 1 - i; return back === 0 ? { color: k === "do" ? BRAND.cyan : "#a78bfa", opacity: 1 } : { color: YEAR_COLORS[Math.max(0, 1 - (back - 1))] || "#94a3b8", opacity: 1 }; };
     const series = ys.map((y, i) => ({ name: String(y), ...sty(i), values: MONTHS.map((_, mi) => f.byYear[y].months.find((x) => x.m === mi + 1)?.v ?? null) }));
-    panels.push({ k, label: k === "do" ? "DO terbit per bulan" : "Invoice terbit per bulan", ys, series, legend: ys.map((y, i) => ({ t: `${y}${f.byYear[y].partial ? ` (s/d ${f.byYear[y].lastLabel})` : ""}`, c: sty(i).color, o: sty(i).opacity })) });
+    panels.push({ k, label: k === "do" ? "DO terbit per bulan" : "Invoice terbit per bulan", ys, series, legend: ys.map((y, i) => ({ t: `${y}${f.byYear[y].partial ? ` (s/d ${f.byYear[y].lastLabel})` : ""} · total ${fmtInt(f.byYear[y].total)}`, c: sty(i).color, o: sty(i).opacity })) });
   }
   const facts = ["do", "inv"].map((k) => { const c = flowCompare(ds, k); if (!c) return null; const n = k === "do" ? "DO" : "Invoice"; return `${n}: bulan tertinggi ${c.best.label} ${c.y} (${fmtInt(c.best.v)}), terendah ${c.low.label} (${fmtInt(c.low.v)}).`; }).filter(Boolean);
   const cur = panels.find((p) => p.k === open);
