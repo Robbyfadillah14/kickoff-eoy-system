@@ -5,7 +5,7 @@ import { DashboardSlide, PanelsSlide } from "./KpiDashboard.jsx";
 import { CoverSlide, SlideHead, Glass, Eyebrow, ArcGauge, YearBars, Pill, Empty, JourneySlide, FutureSlide, ClosingSlide, TrendSlide, StatTile, ptText, deltaColor, pctText } from "./slides.jsx";
 import { buildClusterData, collectByDept, resolveDepartment, feedersOf, ownersOf, phaseOf, toNum, formatRupiah, BRAND, phaseColor, statusOf, isEmptyValue } from "../../lib/presentation/index.js";
 import { buildHrSlides } from "./HrSlides.jsx";
-import { buildLogSlides, withLogBackfill } from "./LogSlides.jsx";
+import { buildLogSlides, withLogBackfill, logPanels } from "./LogSlides.jsx";
 import { buildNotesSlides } from "./NotesSlide.jsx";
 import { DEPT_KPIS, OUTLOOK_KEYS, kpiMatrix, scoreOf, excelItems, clip } from "../../lib/presentation/kpi.js";
 
@@ -192,7 +192,9 @@ export function buildKpiSlides(rawData, cfg, { plantName = "", deptCode = null }
   const bad = badInfo ? [{ id: "baddebt", label: "Bad debt", node: <BadDebtSlide year={badInfo.year} list={badInfo.list} accent={cfg.accent} /> }] : [];
   // panel per departemen (klaster) / per indikator (satu divisi)
   const panelItems = solo
-    ? kpiMatrix(data, solo.code).rows.filter((r) => ACTUAL_YEARS.some((yr) => r.cells[yr])).map((r) => {
+        ? kpiMatrix(data, solo.code).rows.filter((r) => ACTUAL_YEARS.some((yr) => r.cells[yr])).flatMap((r) => {
+        const lp = solo.code === "ADM_LOG" ? logPanels(data) : null;
+        if (lp?.[r.key]?.length) return lp[r.key]; // DO / Invoice / Cancel: 3 tahun dari Excel
         const cs = ACTUAL_YEARS.map((yr) => r.cells[yr]);
         const lastC = [...cs].reverse().find(Boolean);
         const hasVal = cs.some((c) => c && c.value != null), hasMet = cs.some((c) => c && c.met != null);

@@ -65,23 +65,62 @@ export function withLogBackfill(data) {
   if (!ds || !data?.years) return data;
   const dept = Object.values(data.years).map((b) => b?.byDept?.ADM_LOG?.dept).find(Boolean) || feedersOf(data.cluster).find((d) => d.code === "ADM_LOG");
   if (!dept) return data;
+  // hanya isian yang memang punya data PER TAHUN di Excel (arsip PO / on-time tidak per tahun -> tidak diisi otomatis)
+  const YEARLY = ["totalDoInvCreated", "cancelInvTarget", "cancelInvAnalysis"];
   const years = { ...data.years };
   let changed = false;
   for (const yr of [2024, 2025, 2026]) {
     const b = years[yr];
     if (!b) continue;
     const fields = logFieldsFrom(ds, yr);
-    const keys = Object.keys(fields);
-    if (!keys.length) continue;
     const cur = b.byDept?.ADM_LOG;
     const metrics = { ...(cur?.metrics || {}) };
-    const add = keys.filter((k) => isEmptyValue(metrics[k]));
-    if (!add.length) continue;
+    const add = YEARLY.filter((k) => fields[k] != null && isEmptyValue(metrics[k]));
     for (const k of add) metrics[k] = fields[k];
+    // vonis cancel invoice memakai target TIAP TAHUN dari Excel (bukan angka tetap 150)
+    const c = ds.cancel?.byYear?.[yr], st = c ? cancelStatus(c) : null;
+    if (c && st?.ok != null) { metrics.logJudge = { ...(metrics.logJudge || {}), cancelInvTarget: { met: st.ok, targetLabel: targetText(c.target) } }; }
+    if (!add.length && !metrics.logJudge) continue;
     years[yr] = { ...b, hasData: true, byDept: { ...b.byDept, ADM_LOG: { ...(cur || {}), dept, report: cur?.report, metrics, filledKeys: [...(cur?.filledKeys || []), ...add] } } };
     changed = true;
   }
   return changed ? { ...data, years } : data;
+}
+
+const LOG_YEARS = [2024, 2025, 2026];
+/** panel "Per indikator" Admin Logistic: DO, Invoice, Cancel tampil 3 tahun (bukan teks 2026 saja) */
+export function logPanels(data) {
+  const ds = logOf(data);
+  if (!ds) return null;
+  const mk = (key, title, icon, color, pick, tag) => {
+    const values = LOG_YEARS.map((yy) => { const v = pick(yy); return v ? v.total : null; });
+    if (!values.some((v) => v != null)) return null;
+    const li = LOG_YEARS[values.map((v) => v != null).lastIndexOf(true)];
+    const last = pick(li);
+    return { key, title, icon, color, tag, numeric: true, values, max: Math.max(1, ...values.map((v) => v ?? 0)) * 1.15, fmt: (v) => fmtInt(v),
+      label: `${li}${last?.partial ? ` · s/d ${last.lastLabel}` : ""}`, value: fmtInt(last.total) };
+  };
+  return {
+    totalDoInvCreated: [
+      mk("logDo", "DO terbit per tahun", "box", BRAND.cyan, (yy) => ds.flow?.do?.byYear?.[yy], "total dokumen DO"),
+      mk("logInv", "Invoice terbit per tahun", "file", "#a78bfa", (yy) => ds.flow?.inv?.byYear?.[yy], "total dokumen invoice"),
+    ].filter(Boolean),
+    cancelInvTarget: [mk("logCancel", "Cancel invoice per tahun", "alert", BRAND.warn, (yy) => ds.cancel?.byYear?.[yy], "target tiap tahun berbeda")].filter(Boolean),
+  };
+}
+
+/** capaian Arsip PO / On-time per tahun, dibaca dari laporan tiap tahun (angka persen di teks isian) */
+const pctOf = (t) => { const m = String(t ?? "").match(/(\d+(?:[.,]\d+)?)\s*%/); return m ? Math.round(parseFloat(m[1].replace(",", "."))) : null; };
+function kpiByYear(data) {
+  const out = [];
+  for (const yy of LOG_YEARS) {
+    const m = data?.years?.[yy]?.byDept?.ADM_LOG?.metrics;
+    if (!m) continue;
+    const ap = pctOf(m.poSoftcopyArch), ot = pctOf(m.csSupportStatus);
+    if (ap == null && ot == null) continue;
+    out.push({ y: yy, v: [ap, ot].filter((x) => x != null).map((x) => `${x}%`).join(" · ") });
+  }
+  return out;
 }
 
 const YC = ["#94a3b8", "#F5B83D"];
@@ -226,7 +265,7 @@ const Legend = ({ items }) => (
 
 /* ------------------------------------------------------------------ slide 1: poin penting */
 
-function LogKeySlide({ ds, accent }) {
+function LogKeySlide({ ds, accent, data }) {
   const [open, setOpen] = useState(null);
   const cards = [], facts = [];
 
@@ -263,8 +302,22 @@ function LogKeySlide({ ds, accent }) {
     const ok = both.every((k) => k.pct >= 100);
     cards.push({ cid: "kpi", kind: "kpi", icon: "star", color: ok ? GOOD : WARN, label: "Arsip PO · On-time delivery", value: both.map((k) => `${Math.round(k.pct)}%`).join(" · "),
       status: ok, statusText: "✓ Tercapai",
-      sub: "Arsip PO customer · support on-time delivery" });
+      sub: "Arsip PO customer · support on-time delivery",
+      years: (() => { const ky = kpiByYear(data); return ky.length > 1 ? yearChips(ky.map((x) => ({ y: x.y, v: x.v, note: "" })), ok ? GOOD : WARN) : null; })() });
   }
+
+  // ringkasan 3 tahun
+  const arrow = (vals) => vals.join(" → ");
+  const flowLine = (k, nm) => {
+    const f = ds.flow?.[k]; if (!f) return null;
+    const ys = Object.keys(f.byYear).map(Number).sort();
+    const c = flowCompare(ds, k);
+    const last = f.byYear[ys[ys.length - 1]];
+    return `${nm}: ${arrow(ys.map((yy) => fmtInt(f.byYear[yy].total)))} (${ys.join("/")}${last.partial ? `, ${ys[ys.length - 1]} s/d ${last.lastLabel}` : ""})${c?.pct != null ? `, ${sgn(c.pct)} vs periode sama ${c.py}` : ""}.`;
+  };
+  const cyAll = cancelYears(ds);
+  const cancelLine = cyAll.length ? (() => { const lc = ds.cancel.byYear[cyAll[cyAll.length - 1]], stt = cancelStatus(lc); return `Cancel invoice: ${arrow(cyAll.map((yy) => ds.cancel.byYear[yy].total))} (${cyAll.join("/")})${stt?.ok != null ? `; ${cyAll[cyAll.length - 1]} ${stt.ok ? "dalam target" : "melewati target"}` : ""}.`; })() : null;
+  const summary3 = [flowLine("do", "DO"), flowLine("inv", "Invoice"), cancelLine].filter(Boolean).join(" ");
 
   const cur = cards.find((c) => c.cid === open);
   return (
@@ -273,7 +326,7 @@ function LogKeySlide({ ds, accent }) {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: "1fr 1fr auto", gap: 16, alignContent: "stretch", minHeight: 0 }}>
         <PrintCss />
         {cards.map((c, i) => <div key={c.cid} style={{ display: "flex", flexDirection: "column", minHeight: 0, gridColumn: cards.length % 2 === 1 && i === cards.length - 1 ? "1 / -1" : "auto" }}><KeyCard {...c} onInfo={() => setOpen(c.cid)} /></div>)}
-        {facts.length > 0 && <div style={{ gridColumn: "1 / -1" }}><Insight color={accent} label="Ringkasan">{[facts[0], facts.find((f) => f.startsWith("Cancel"))].filter(Boolean).join(" ")}</Insight></div>}
+        {facts.length > 0 && <div style={{ gridColumn: "1 / -1" }}><Insight color={accent} label="Ringkasan 2024–2026">{summary3 || [facts[0], facts.find((f) => f.startsWith("Cancel"))].filter(Boolean).join(" ")}</Insight></div>}
         {cur && <DetailPopup title={cur.label} sub="Rincian sumber dan perhitungan" onClose={() => setOpen(null)}><LogDetailContent kind={cur.kind} ds={ds} /></DetailPopup>}
       </div>
     </div>
@@ -294,7 +347,12 @@ function LogTrendSlide({ ds, accent }) {
     const series = ys.map((y, i) => ({ name: String(y), ...sty(i), values: MONTHS.map((_, mi) => f.byYear[y].months.find((x) => x.m === mi + 1)?.v ?? null) }));
     panels.push({ k, label: k === "do" ? "DO terbit per bulan" : "Invoice terbit per bulan", ys, series, legend: ys.map((y, i) => ({ t: `${y}${f.byYear[y].partial ? ` (s/d ${f.byYear[y].lastLabel})` : ""} · total ${fmtInt(f.byYear[y].total)}`, c: sty(i).color, o: sty(i).opacity })) });
   }
-  const facts = ["do", "inv"].map((k) => { const c = flowCompare(ds, k); if (!c) return null; const n = k === "do" ? "DO" : "Invoice"; return `${n}: bulan tertinggi ${c.best.label} ${c.y} (${fmtInt(c.best.v)}), terendah ${c.low.label} (${fmtInt(c.low.v)}).`; }).filter(Boolean);
+  const facts = ["do", "inv"].map((k) => {
+    const f = ds.flow?.[k]; if (!f) return null;
+    const ys = Object.keys(f.byYear).map(Number).sort();
+    const per = ys.map((yy) => { const ms = f.byYear[yy].months; const hi = ms.reduce((a, x) => (x.v > a.v ? x : a), ms[0]), lo = ms.reduce((a, x) => (x.v < a.v ? x : a), ms[0]); return `${yy} ${hi.label} ${fmtInt(hi.v)} / ${lo.label} ${fmtInt(lo.v)}`; });
+    return `${k === "do" ? "DO" : "Invoice"} tertinggi / terendah — ${per.join(" · ")}.`;
+  }).filter(Boolean);
   const cur = panels.find((p) => p.k === open);
   return (
     <div>
@@ -311,7 +369,7 @@ function LogTrendSlide({ ds, accent }) {
             <Legend items={p.legend} />
           </Glass>
         ))}
-        <div style={{ gridColumn: "1 / -1" }}><Insight color={accent} label="Ringkasan">{facts.join(" ")}</Insight></div>
+        <div style={{ gridColumn: "1 / -1" }}><Insight color={accent} label="Ringkasan 2024–2026">{facts.join(" ")}</Insight></div>
         {cur && <DetailPopup title={cur.label} sub="Rincian per bulan" onClose={() => setOpen(null)}><LogDetailContent kind={cur.k} ds={ds} /></DetailPopup>}
       </div>
     </div>
@@ -320,17 +378,17 @@ function LogTrendSlide({ ds, accent }) {
 
 /* ------------------------------------------------------------------ slide 3: cancel invoice */
 
-function ReasonBars({ items, color, max }) {
-  const top = [...items].sort((a, b) => b.n - a.n).slice(0, 4);
+function ReasonCol({ title, color, side }) {
+  const top = side ? [...side.items].sort((x, y) => y.n - x.n).slice(0, 3) : [];
   return (
-    <div style={{ display: "grid", gap: 5 }}>
-      {top.map((x) => (
-        <div key={x.label} style={{ display: "grid", gridTemplateColumns: "230px 1fr 34px", alignItems: "center", gap: 10, fontSize: 14 }}>
+    <div style={{ minWidth: 0 }}>
+      <div style={{ fontSize: 11, letterSpacing: 1.5, fontWeight: 800, color, marginBottom: 2 }}>{title}{side ? ` · ${side.total}` : ""}</div>
+      {top.length ? top.map((x) => (
+        <div key={x.label} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8, fontSize: 13, lineHeight: 1.45 }}>
           <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={x.label}>{x.label}</span>
-          <span style={{ height: 12, borderRadius: 6, background: BRAND.panel, overflow: "hidden" }}><i style={{ display: "block", height: "100%", width: `${(x.n / max) * 100}%`, background: color, borderRadius: 6 }} /></span>
-          <b style={{ textAlign: "right" }}>{x.n}</b>
+          <b>{x.n}</b>
         </div>
-      ))}
+      )) : <div style={{ fontSize: 12, color: BRAND.muted }}>—</div>}
     </div>
   );
 }
@@ -343,15 +401,13 @@ function LogCancelSlide({ ds, accent }) {
     { name: "Internal", color: BRAND.cyan, showValues: true, values: ys.map((y) => by[y].int) },
     { name: "Eksternal", color: "#a78bfa", showValues: true, values: ys.map((y) => by[y].ext) },
   ];
-  const ry = Object.keys(ds.reasons?.byYear || {}).map(Number).sort().pop();
-  const rs = ry ? ds.reasons.byYear[ry] : null;
-  const max = rs ? Math.max(...["internal", "external"].flatMap((s) => (rs[s]?.items || []).map((x) => x.n)), 1) : 1;
+  const ryears = Object.keys(ds.reasons?.byYear || {}).map(Number).sort();
   const ly = ys[ys.length - 1], lc = by[ly], st = cancelStatus(lc);
-  const topOf = (side) => (rs?.[side]?.items?.length ? [...rs[side].items].sort((a, b) => b.n - a.n)[0] : null);
-  const ti = topOf("internal"), te = topOf("external");
+  const topOf = (yy, side) => { const it = ds.reasons?.byYear?.[yy]?.[side]?.items; return it?.length ? [...it].sort((x, y) => y.n - x.n)[0] : null; };
+  const reasonLine = ryears.length ? `Alasan terbanyak (internal / eksternal): ${ryears.map((yy) => { const i = topOf(yy, "internal"), e = topOf(yy, "external"); return `${yy} ${i ? `“${i.label}” ${i.n}` : "—"} / ${e ? `“${e.label}” ${e.n}` : "—"}`; }).join(" · ")}.` : null;
   const facts = [
-    `Cancel ${ly}: ${lc.total} dokumen (${lc.int} internal, ${lc.ext} eksternal) dengan target ${targetText(lc.target)}${st?.ok ? " — masih dalam target" : st?.ok === false ? " — melewati target" : ""}${lc.partial ? `; data baru sampai ${lc.lastLabel}` : ""}.`,
-    rs && (ti || te) ? `Penyebab terbanyak ${ry}: ${[ti ? `internal “${ti.label}” (${ti.n})` : null, te ? `eksternal “${te.label}” (${te.n})` : null].filter(Boolean).join(", ")}.` : null,
+    `Cancel per tahun: ${ys.map((yy) => `${yy} ${by[yy].total}${by[yy].partial ? ` (s/d ${by[yy].lastLabel})` : ""}`).join(" → ")}. ${ly}: ${lc.int} internal + ${lc.ext} eksternal, target ${targetText(lc.target)}${st?.ok ? " — dalam target" : st?.ok === false ? " — melewati target" : ""}.`,
+    reasonLine,
   ].filter(Boolean);
   return (
     <div>
@@ -367,18 +423,23 @@ function LogCancelSlide({ ds, accent }) {
           <Legend items={[{ t: "Internal", c: BRAND.cyan }, { t: "Eksternal", c: "#a78bfa" }]} />
           <div style={{ fontSize: 13, color: BRAND.muted, lineHeight: 1.4 }}>Target: {ys.map((y) => `${y} ${targetText(by[y].target)}`).join(" · ")}</div>
         </Glass>
-        <Glass style={{ padding: "14px 20px", gap: 8 }}>
+        <Glass style={{ padding: "12px 20px", gap: 6 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ flex: 1, fontSize: 19, fontWeight: 800 }}>{rs ? `Alasan cancel terbanyak ${ry}` : "Alasan cancel"}</div>
-            {rs && <InfoBtn onClick={() => setOpen("reasons")} color="#a78bfa" />}
+            <div style={{ flex: 1, fontSize: 19, fontWeight: 800 }}>Alasan cancel terbanyak per tahun</div>
+            {ryears.length > 0 && <InfoBtn onClick={() => setOpen("reasons")} color="#a78bfa" />}
           </div>
-          {rs ? (<>
-            {rs.internal && <div><div style={{ fontSize: 12, letterSpacing: 2, fontWeight: 800, color: BRAND.cyan, marginBottom: 4 }}>INTERNAL · {rs.internal.total} DOKUMEN</div><ReasonBars items={rs.internal.items} color={BRAND.cyan} max={max} /></div>}
-            {rs.external && <div><div style={{ fontSize: 12, letterSpacing: 2, fontWeight: 800, color: "#a78bfa", marginBottom: 4 }}>EKSTERNAL · {rs.external.total} DOKUMEN</div><ReasonBars items={rs.external.items} color="#a78bfa" max={max} /></div>}
-            {ry < ly && <div style={{ fontSize: 13, color: WARN }}>Rincian alasan {ly} belum ada di file; yang tampil data {ry}.</div>}
-          </>) : <div style={{ color: BRAND.muted, fontSize: 16 }}>Rincian alasan belum ada di file.</div>}
+          {ryears.length ? ryears.map((yy, i) => {
+            const r = ds.reasons.byYear[yy], col = i === ryears.length - 1 ? "#34d399" : YC[Math.max(0, YC.length - (ryears.length - 1 - i))] || YC[0];
+            return (
+              <div key={yy} style={{ display: "grid", gridTemplateColumns: "52px 1fr 1fr", gap: 12, alignItems: "start", borderTop: i ? `1px solid ${BRAND.line || "#ffffff1a"}` : "none", paddingTop: i ? 6 : 0 }}>
+                <div style={{ fontSize: 20, fontWeight: 900, color: col, lineHeight: 1.1 }}>{yy}</div>
+                <ReasonCol title="INTERNAL" color={BRAND.cyan} side={r.internal} />
+                <ReasonCol title="EKSTERNAL" color="#a78bfa" side={r.external} />
+              </div>
+            );
+          }) : <div style={{ color: BRAND.muted, fontSize: 16 }}>Rincian alasan belum ada di file.</div>}
         </Glass>
-        <div style={{ gridColumn: "1 / -1" }}><Insight color={accent} label="Ringkasan">{facts.join(" ")}</Insight></div>
+        <div style={{ gridColumn: "1 / -1" }}><Insight color={accent} label="Ringkasan 2024–2026">{facts.join(" ")}</Insight></div>
         {open && <DetailPopup title={open === "cancel" ? "Cancel invoice per tahun" : "Alasan cancel invoice"} sub="Rincian sumber dan perhitungan" onClose={() => setOpen(null)}><LogDetailContent kind={open} ds={ds} /></DetailPopup>}
       </div>
     </div>
@@ -392,7 +453,7 @@ export function buildLogSlides(data, cfg = {}) {
   const ds = logOf(data);
   if (!ds) return [];
   const out = [];
-  if (ds.flow?.do || ds.flow?.inv || cancelYears(ds).length || ds.kpis?.length) out.push({ id: "log-key", label: "Logistik · Poin penting", node: <LogKeySlide ds={ds} accent={cfg.accent} /> });
+  if (ds.flow?.do || ds.flow?.inv || cancelYears(ds).length || ds.kpis?.length) out.push({ id: "log-key", label: "Logistik · Poin penting", node: <LogKeySlide ds={ds} accent={cfg.accent} data={data} /> });
   if (ds.flow?.do || ds.flow?.inv) out.push({ id: "log-trend", label: "Logistik · DO & INV", node: <LogTrendSlide ds={ds} accent={cfg.accent} /> });
   if (cancelYears(ds).length) out.push({ id: "log-cancel", label: "Logistik · Cancel", node: <LogCancelSlide ds={ds} accent={cfg.accent} /> });
   return out;

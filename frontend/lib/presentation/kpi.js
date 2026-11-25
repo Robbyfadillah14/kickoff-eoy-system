@@ -99,7 +99,7 @@ export const DEPT_KPIS = {
       { key: "poSoftcopyArch",  label: "Arsip PO softcopy",            kind: "text" },
       { key: "csSupportStatus", label: "Customer service support",     kind: "info" },
       { key: "totalDoInvCreated", label: "Total DO & invoice terbit",  kind: "info" },
-      { key: "cancelInvTarget", label: "Cancel invoice (maks 150 dokumen)", kind: "count", target: 150, dir: "max", targetLabel: "≤ 150" },
+      { key: "cancelInvTarget", label: "Cancel invoice (dokumen)", kind: "count", target: 150, dir: "max", targetLabel: "≤ 150" },
     ],
   },
   HR_MR: {
@@ -216,7 +216,9 @@ export function kpiMatrix(data, deptCode, years = [2024, 2025, 2026, 2027]) {
       const m = data?.years?.[y]?.byDept?.[deptCode]?.metrics;
       let kk = k;
       if (m && k.targetKey && !isEmptyValue(m[k.targetKey])) { const tv = countFromText(m[k.targetKey]); if (tv != null) kk = { ...k, target: tv, targetLabel: `${k.dir === "max" ? "≤" : "≥"} ${fmtNum(tv)}${k.kind === "pct" ? "%" : ""}` }; }
-      cells[y] = m ? judgeKpi(kk, m[k.key]) : null;
+            cells[y] = m ? judgeKpi(kk, m[k.key]) : null;
+      const jv = m?.logJudge?.[k.key]; // vonis dari Excel (target tiap tahun berbeda), mis. cancel invoice Admin Logistic
+      if (cells[y] && jv) { cells[y] = { ...cells[y], met: jv.met }; if (jv.targetLabel) targetLabel = jv.targetLabel; }
       if (cells[y] && kk.targetLabel && !targetLabel) targetLabel = kk.targetLabel;
       if (cells[y]) hasData = true;
     }
