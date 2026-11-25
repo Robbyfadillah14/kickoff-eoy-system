@@ -21,11 +21,39 @@ const R = "right";
 /* ------------------------------------------------------------------ data */
 
 export function logOf(data) {
+  // Excel bisa diunggah per tahun (tiap laporan tahun punya logData sendiri) ATAU satu file 3 tahun.
+  // Semua digabung: untuk tiap tahun dipakai data dari laporan tahun itu sendiri; kalau tidak ada, dari laporan lain yang memuat tahun tsb.
+  const found = [];
   for (const yr of [2027, 2026, 2025, 2024]) {
     const l = data?.years?.[yr]?.byDept?.ADM_LOG?.metrics?.logData;
-    if (l && typeof l === "object" && (l.flow || l.cancel)) return l;
+    if (l && typeof l === "object" && (l.flow || l.cancel)) found.push({ yr, l });
   }
-  return null;
+  if (!found.length) return null;
+  const base = found[0].l; // laporan terbaru jadi dasar (file, KPI, peringatan)
+  if (found.length === 1) return base;
+  const pick = (year, get) => {
+    const own = found.find((f) => f.yr === year && get(f.l)?.[year]);
+    if (own) return get(own.l)[year];
+    const any = found.find((f) => get(f.l)?.[year]);
+    return any ? get(any.l)[year] : undefined;
+  };
+  const merge = (get, init) => {
+    const ys = new Set();
+    for (const f of found) Object.keys(get(f.l) || {}).forEach((y) => ys.add(Number(y)));
+    const out = { ...init };
+    for (const y of [...ys].sort()) { const v = pick(y, get); if (v !== undefined) out[y] = v; }
+    return out;
+  };
+  const flow = {};
+  for (const k of ["do", "inv"]) {
+    const src = found.find((f) => f.l.flow?.[k]);
+    if (src) flow[k] = { ...src.l.flow[k], byYear: merge((l) => l.flow?.[k]?.byYear, {}) };
+  }
+  const cancel = { ...(base.cancel || found.find((f) => f.l.cancel)?.l.cancel || {}), byYear: merge((l) => l.cancel?.byYear, {}) };
+  const reasons = { ...(base.reasons || {}), byYear: merge((l) => l.reasons?.byYear, {}) };
+  const years = [...new Set(found.flatMap((f) => (Array.isArray(f.l.years) ? f.l.years : [])).concat(Object.keys(cancel.byYear).map(Number), Object.keys(flow.do?.byYear || {}).map(Number)))].sort();
+  const warnings = [...new Set(found.flatMap((f) => (Array.isArray(f.l.warnings) ? f.l.warnings : [])))];
+  return { ...base, flow, cancel, reasons, years, warnings };
 }
 
 const cancelYears = (ds) => Object.keys(ds?.cancel?.byYear || {}).map(Number).sort();
