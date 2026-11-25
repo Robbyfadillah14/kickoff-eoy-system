@@ -88,6 +88,7 @@ export function withLogBackfill(data) {
 }
 
 const LOG_YEARS = [2024, 2025, 2026];
+const pctOf = (t) => { const m = String(t ?? "").match(/(\d+(?:[.,]\d+)?)\s*%/); return m ? Math.round(parseFloat(m[1].replace(",", "."))) : null; };
 /** panel "Per indikator" Admin Logistic: DO, Invoice, Cancel tampil 3 tahun (bukan teks 2026 saja) */
 export function logPanels(data) {
   const ds = logOf(data);
@@ -100,7 +101,17 @@ export function logPanels(data) {
     return { key, title, icon, color, tag, numeric: true, values, max: Math.max(1, ...values.map((v) => v ?? 0)) * 1.15, fmt: (v) => fmtInt(v),
       label: `${li}${last?.partial ? ` · s/d ${last.lastLabel}` : ""}`, value: fmtInt(last.total) };
   };
+  // Arsip PO softcopy & Customer service support: persen tiap tahun dari isian laporan masing-masing tahun
+  const pctPanel = (key, title, icon, color, field) => {
+    const values = LOG_YEARS.map((yy) => pctOf(data?.years?.[yy]?.byDept?.ADM_LOG?.metrics?.[field]));
+    if (!values.some((v) => v != null)) return null;
+    const li = LOG_YEARS[values.map((v) => v != null).lastIndexOf(true)];
+    return { key, title, icon, color, tag: "target 100%", numeric: true, values, max: Math.max(100, ...values.map((v) => v ?? 0)), fmt: (v) => `${v}%`,
+      label: `${li}`, value: `${values[LOG_YEARS.indexOf(li)]}%` };
+  };
   return {
+    poSoftcopyArch: [pctPanel("logArsip", "Arsip PO softcopy", "target", BRAND.cyan, "poSoftcopyArch")].filter(Boolean),
+    csSupportStatus: [pctPanel("logCs", "Customer service support", "star", GOOD, "csSupportStatus")].filter(Boolean),
     totalDoInvCreated: [
       mk("logDo", "DO terbit per tahun", "box", BRAND.cyan, (yy) => ds.flow?.do?.byYear?.[yy], "total dokumen DO"),
       mk("logInv", "Invoice terbit per tahun", "file", "#a78bfa", (yy) => ds.flow?.inv?.byYear?.[yy], "total dokumen invoice"),
@@ -110,7 +121,6 @@ export function logPanels(data) {
 }
 
 /** capaian Arsip PO / On-time per tahun, dibaca dari laporan tiap tahun (angka persen di teks isian) */
-const pctOf = (t) => { const m = String(t ?? "").match(/(\d+(?:[.,]\d+)?)\s*%/); return m ? Math.round(parseFloat(m[1].replace(",", "."))) : null; };
 function kpiByYear(data) {
   const out = [];
   for (const yy of LOG_YEARS) {
