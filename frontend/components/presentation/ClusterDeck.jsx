@@ -95,7 +95,7 @@ export function buildClusterSlides(data, cfg, { plantName = "" } = {}) {
           </div>)}
       </div>) },
     ...(matrix.hasData && dept ? [{ id: "matrix", label: "Indikator", node: <DeptMatrixSlide dept={dept} matrix={matrix} accent={cfg.accent} /> }] : []),
-    ...(cfg.deptCode === "DIG_MKT" ? buildDmSlides(data, { accent: cfg.accent }) : []),
+    ...(cfg.deptCode === "DIG_MKT" ? buildDmSlides(data, { accent: cfg.accent, plantName }) : []),
     { id: "journey", label: "Perjalanan", node: <JourneySlide columns={journey} /> },
     { id: "future", label: "2027", node: <FutureSlide outlooks={outlooks} wins={wins} risks={risks} hint={data.completeness[2027]?.missing?.length ? `Belum mengisi 2027: ${data.completeness[2027].missing.join(", ")}` : undefined} /> },
     ...(scored.length || outlooks.length ? [{ id: "closing", label: "Penutup", node: <ClosingSlide accent={cfg.accent} title="Ringkasan & langkah berikutnya"
