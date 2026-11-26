@@ -17,7 +17,7 @@ const YEARS = [2024, 2025, 2026];
 // isian terstruktur / sudah punya tampilan sendiri -> jangan dobel
 const SKIP = new Set([
   "salesType", "kpiList", "salesPerformances", "salesSupportPerformances", "metrics", "weeklyRevenue", "targetAchievedPct",
-  "branchInnovations", "challenges", "opportunities", "strategicOutlook2027", "nextYearOutlook", "logData", "hrData", "dmFigures",
+  "branchInnovations", "challenges", "opportunities", "strategicOutlook2027", "nextYearOutlook", "logData", "arData", "hrData", "dmFigures",
 ]);
 const LABELS = {
   generalNotes: "Catatan umum", cancelInvAnalysis: "Analisis cancel invoice", hrEvaluation: "Evaluasi HR",

@@ -6,6 +6,7 @@ import { CoverSlide, SlideHead, Glass, Eyebrow, ArcGauge, YearBars, Pill, Empty,
 import { buildClusterData, collectByDept, resolveDepartment, feedersOf, ownersOf, phaseOf, toNum, formatRupiah, BRAND, phaseColor, statusOf, isEmptyValue } from "../../lib/presentation/index.js";
 import { buildHrSlides } from "./HrSlides.jsx";
 import { buildLogSlides, withLogBackfill, logPanels } from "./LogSlides.jsx";
+import { buildArSlides, withArBackfill, arPanels } from "./ArSlides.jsx";
 import { buildNotesSlides } from "./NotesSlide.jsx";
 import { DEPT_KPIS, OUTLOOK_KEYS, kpiMatrix, scoreOf, excelItems, clip } from "../../lib/presentation/kpi.js";
 
@@ -127,7 +128,7 @@ export function moneyPanels(y, solo) {
 }
 
 export function buildKpiSlides(rawData, cfg, { plantName = "", deptCode = null } = {}) {
-  const data = withLogBackfill(rawData); // kolom KPI Admin Logistic 2024/2025 diisi dari Excel bila laporan tahun itu belum menyimpannya
+  const data = withArBackfill(withLogBackfill(rawData)); // kolom KPI Admin Logistic 2024/2025 diisi dari Excel bila laporan tahun itu belum menyimpannya
   if (data.needsPlant) return [{ id: "plant", label: "Pilih plant", node: <div style={{ height: "100%", display: "grid", placeItems: "center" }}><Empty hint="Data berisi lebih dari satu plant — pilih plant dulu agar angka tidak tercampur.">Plant belum dipilih</Empty></div> }];
 
   const feeders = feedersOf(data.cluster).filter((d) => DEPT_KPIS[d.code] && (!deptCode || d.code === deptCode));
@@ -156,6 +157,7 @@ export function buildKpiSlides(rawData, cfg, { plantName = "", deptCode = null }
     if (items.length) deptSlides.push({ id: `x-${d.code}`, label: `${d.short} (Excel)`, node: <ExcelSlide dept={d} year={excelYear} items={items} accent={cfg.accent} /> });
     if (d.code === "HR_MR") deptSlides.push(...buildHrSlides(data, { accent: cfg.accent }));
     if (d.code === "ADM_LOG") logSlides.push(...buildLogSlides(data, { accent: cfg.accent }));
+    if (d.code === "FIN_AR") logSlides.push(...buildArSlides(data, { accent: cfg.accent }));
   }
 
   // perjalanan: teks evaluasi per departemen + RGT dari laporan
@@ -189,11 +191,11 @@ export function buildKpiSlides(rawData, cfg, { plantName = "", deptCode = null }
     }
   }
   const notesSlides = buildNotesSlides(data, { solo, accent: cfg.accent });
-  const bad = badInfo ? [{ id: "baddebt", label: "Bad debt", node: <BadDebtSlide year={badInfo.year} list={badInfo.list} accent={cfg.accent} /> }] : [];
+  const bad = badInfo && !logSlides.some((x) => x.id === "ar-baddebt") ? [{ id: "baddebt", label: "Bad debt", node: <BadDebtSlide year={badInfo.year} list={badInfo.list} accent={cfg.accent} /> }] : [];
   // panel per departemen (klaster) / per indikator (satu divisi)
   const panelItems = solo
         ? kpiMatrix(data, solo.code).rows.filter((r) => ACTUAL_YEARS.some((yr) => r.cells[yr])).flatMap((r) => {
-        const lp = solo.code === "ADM_LOG" ? logPanels(data) : null;
+        const lp = solo.code === "ADM_LOG" ? logPanels(data) : solo.code === "FIN_AR" ? arPanels(data) : null;
         if (lp?.[r.key]?.length) return lp[r.key]; // DO / Invoice / Cancel: 3 tahun dari Excel
         const cs = ACTUAL_YEARS.map((yr) => r.cells[yr]);
         const lastC = [...cs].reverse().find(Boolean);

@@ -1,6 +1,7 @@
 "use client";
 import React, { useState } from "react";
 import FinanceFigures from "./FinanceFigures";
+import ArUpload from "./ArUpload";
 import { parseExcelFile, applyExcelImport } from "../../lib/reportExcel";
 import { FileSpreadsheet, Upload, CheckCircle2, Edit3, Eye } from "lucide-react";
 
@@ -86,6 +87,11 @@ export default function FinanceARForm({ form, setForm }) {
       {/* ---------------------------------------------------- */}
       {inputMode === "EXCEL" && (
         <div className="space-y-4">
+          <ArUpload form={form} setForm={setForm} />
+
+          <details className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
+            <summary className="text-xs font-semibold text-slate-300 cursor-pointer select-none">Punya tabel Target–Aktual biasa (bukan rekap piutang / bad debt)? Klik di sini</summary>
+            <div className="space-y-4 mt-4">
           
           {/* BANNER PEMBERITAHUAN & PANDUAN FLEKSIBEL EXCEL */}
           <div className="bg-gradient-to-r from-amber-950/40 via-slate-900 to-slate-900 border border-amber-500/40 rounded-2xl p-4 sm:p-5 space-y-3 shadow-lg">
@@ -198,6 +204,8 @@ export default function FinanceARForm({ form, setForm }) {
               </div>
             )}
           </section>
+            </div>
+          </details>
         </div>
       )}
 
