@@ -105,7 +105,7 @@ const MONEY_PANELS = [
   { dept: "FIN_DEPT", id: "cashEnd", title: "Saldo kas akhir tahun", icon: "layers", keys: ["cashEnd"] },
   { dept: "FIN_DEPT", id: "cashFlow", title: "Arus kas", icon: "trendUp", keys: ["cashIn", "cashOut"], second: "#F5B83D", net: true },
   { dept: "FIN_DEPT", id: "reserve", title: "Dana cadangan", icon: "target", keys: ["reserveFund"] },
-  { dept: "FIN_AR", id: "ar", title: "Piutang vs overdue", icon: "file", keys: ["arOutstanding", "arOverdue"], second: "#F5B83D", ratio: "overdue" },
+  { dept: "FIN_AR", id: "ar", title: "Piutang vs BadDebt", icon: "file", keys: ["arOutstanding", "arOverdue"], second: "#F5B83D", ratio: "overdue" },
   { dept: "FIN_AP", id: "ap", title: "Hutang vs terbayar", icon: "file", keys: ["apOutstanding", "apPaid"], second: "#F5B83D" },
 ];
 const moneyShort = (v) => formatRupiah(v).replace(/^Rp\s*/, "");
@@ -120,8 +120,8 @@ export function moneyPanels(y, solo) {
     const ix = ACTUAL_YEARS.indexOf(li); const a = series[0].values[ix], b = series[1]?.values[ix];
     let value = moneyShort(a ?? b ?? 0), label = `${li}`;
     if (p.net && a != null && b != null) { value = moneyShort(a - b); label = `${li} · selisih bersih`; }
-    else if (p.ratio && a > 0 && b != null) { value = `${((b / a) * 100).toFixed(1)}%`; label = `${li} · overdue dari total`; }
-    const legend = series[1] ? (p.net ? "kas masuk / keluar" : p.ratio ? "total / overdue" : "total / terbayar") : undefined;
+    else if (p.ratio && a > 0 && b != null) { value = `${((b / a) * 100).toFixed(1)}%`; label = `${li} · bad debt dari total`; }
+    const legend = series[1] ? (p.net ? "kas masuk / keluar" : p.ratio ? "total / bad debt" : "total / terbayar") : undefined;
     out.push({ key: p.id, title: p.title, icon: p.icon, tag: legend, label, value, numeric: true, series, max: Math.max(1, ...series.flatMap((s) => s.values.map((v) => v ?? 0))) * 1.15, fmt: moneyShort });
   }
   return out;

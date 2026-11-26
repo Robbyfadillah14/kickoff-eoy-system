@@ -257,10 +257,10 @@ export default function FinanceARForm({ form, setForm }) {
             </div>
           </section>
 
-          <FinanceFigures form={form} setForm={setForm} title="Angka Piutang (Rp)" desc="Total piutang dan bagian yang sudah jatuh tempo."
+          <FinanceFigures form={form} setForm={setForm} title="Angka Piutang (Rp)" desc="Total piutang dan nilai bad debt."
             fields={[
               { key: "arOutstanding", label: "Total piutang berjalan (akhir tahun)", hint: "Contoh: 8200000000" },
-              { key: "arOverdue", label: "Piutang jatuh tempo / overdue", hint: "Contoh: 650000000" },
+              { key: "arOverdue", label: "Nilai Baddebt", hint: "Contoh: 650000000" },
             ]} />
 
           {/* 2. TABEL REKAPITULASI BAD DEBT / PIUTANG BERMASALAH */}
