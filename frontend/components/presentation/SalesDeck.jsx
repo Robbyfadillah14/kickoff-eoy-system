@@ -183,18 +183,12 @@ function YearTimeline({ yearData }) {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 20, flex: 1, minHeight: 0, paddingBottom: 4 }}>
         {yearData.map((d, i) => {
           const c = YEAR_COLORS[i];
-          const sales = d.sList.map((sp) => { const t = toNum(sp.targetProfit || sp.targetVal), a = toNum(sp.actualVal); return { name: txt(sp.salesName), act: a, ach: t > 0 ? (a / t) * 100 : 0 }; }).filter((x) => x.name).sort((a, b) => b.act - a.act);
-          const prods = [...d.products].sort((a, b) => b.jalan - a.jalan);
-          const mx = Math.max(...prods.map((x) => x.jalan), 1);
+          const sales = d.sList.map((sp) => { const t = toNum(sp.targetProfit || sp.targetVal), a = toNum(sp.actualVal); return { name: txt(sp.salesName), act: a, ach: t > 0 ? (a / t) * 100 : 0 }; }).filter((x) => x.name); // urutan nama = urutan saat penginputan
           return (
             <div key={d.yr} style={{ ...card, borderTop: `4px solid ${c}`, padding: "10px 16px 8px", display: "flex", flexDirection: "column", justifyContent: "space-between", gap: 4, minHeight: 0, overflow: "hidden" }}>
               <div>
                 <SectionTitle color={BLUE} right={`${sales.length} personel`}>Tim Sales</SectionTitle>
                 {sales.length ? <MiniList items={sales.map((x) => ({ name: x.name, right: fmtAch(x.ach), color: x.ach >= 100 ? GREEN : "#d97706" }))} /> : <Dash text={d.rep ? "Belum diisi" : "Belum ada laporan"} />}
-              </div>
-              <div>
-                <SectionTitle color={GREEN} right={`${prods.length} item`}>Produk</SectionTitle>
-                {prods.length ? <MiniList items={prods.map((x) => { const dl = pctDelta(x.jalan, x.lalu); return { name: x.name, right: rp(x.jalan), color: SLATE[700], delta: dl }; })} /> : <Dash text={d.rep ? "Belum diisi" : "Belum ada laporan"} />}
               </div>
               <div>
                 <SectionTitle color="#5B6B00">Inovasi</SectionTitle>
@@ -248,8 +242,9 @@ export function buildSalesSlides(data, { mode = "OMZET", plantName = "" } = {}) 
     const note = txt(s.note); if (note && !cell.note.includes(note)) cell.note = cell.note ? `${cell.note} · ${note}` : note;
     matrix[name].cells[yi] = cell; matrix[name].total += a;
   }));
-  const topSales = Object.values(agg).map((s) => ({ ...s, ach: s.target > 0 ? (s.actual / s.target) * 100 : 0 })).sort((a, b) => b.actual - a.actual);
-  const salesRows = Object.values(matrix).sort((a, b) => b.total - a.total);
+  const topSales = Object.values(agg).map((s) => ({ ...s, ach: s.target > 0 ? (s.actual / s.target) * 100 : 0 })); // urutan = urutan input
+  const salesRows = Object.values(matrix); // urutan = urutan saat penginputan
+  const bestSalesName = salesRows.length ? salesRows.reduce((a, r) => (r.total > a.total ? r : a), salesRows[0]).name : null;
 
   const prodAgg = {}; const prodMatrix = {};
   yearData.forEach((d, yi) => d.products.forEach((p) => {
@@ -345,7 +340,7 @@ export function buildSalesSlides(data, { mode = "OMZET", plantName = "" } = {}) 
 
         <div style={{ ...card, padding: 20, display: "flex", flexDirection: "column", minHeight: 0 }}>
           <div style={{ fontSize: 16, fontWeight: 700, color: NAVY }}>Pencapaian sales</div>
-          <div style={{ fontSize: 12, color: SLATE[500], marginBottom: 8 }}>Gabungan 2024-2026, urut {salesType.toLowerCase()}</div>
+          <div style={{ fontSize: 12, color: SLATE[500], marginBottom: 8 }}>Gabungan 2024-2026, sesuai urutan input</div>
           <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "space-between", minHeight: 0 }}>
             {topSales.length ? topSales.map((s) => (
               <div key={s.name}>
@@ -386,11 +381,11 @@ export function buildSalesSlides(data, { mode = "OMZET", plantName = "" } = {}) 
   const team = (
     <div style={{ display: "flex", flexDirection: "column", gap: 12, height: "100%" }}>
       <SlideHeader icon={<Icon name="users" size={22} color={LIME} />} title="Tim Sales" subtitle={`Pencapaian per personel / brand · ${salesRows.length} personel · ${salesType} oriented`} />
-      <YearColHeaders yearData={yearData} label="Sales / Brand" sub={`urut total ${salesType.toLowerCase()}`} idW={teamLvl ? 200 : 230} />
+      <YearColHeaders yearData={yearData} label="Sales / Brand" sub="sesuai urutan input" idW={teamLvl ? 200 : 230} />
       <div style={listFor(teamLvl)}>
         {salesRows.length ? salesRows.map((row, ri) => (
           <div key={row.name} style={rowBoxFor(teamLvl)}>
-            <RowIdentity name={row.name} rank={ri} total={row.total} compact={teamLvl > 0} />
+            <RowIdentity name={row.name} rank={row.name === bestSalesName ? 0 : ri + 1} total={row.total} compact={teamLvl > 0} />
             {row.cells.map((cell, yi) => {
               if (!cell) return <EmptyCell key={yi} />;
               const ach = cell.tgt > 0 ? (cell.act / cell.tgt) * 100 : 0, ok = ach >= 100, prev = yi > 0 ? row.cells[yi - 1] : null;
@@ -442,8 +437,9 @@ export function buildSalesSlides(data, { mode = "OMZET", plantName = "" } = {}) 
       });
       map.set(name, e);
     });
-    return [...map.values()].map((e) => ({ ...e, prods: [...e.prods.values()].sort((a, b) => b.jalan - a.jalan), ach: e.tgt > 0 ? (e.act / e.tgt) * 100 : 0 })).sort((a, b) => b.act - a.act);
+    return [...map.values()].map((e) => ({ ...e, prods: [...e.prods.values()].sort((a, b) => b.jalan - a.jalan), ach: e.tgt > 0 ? (e.act / e.tgt) * 100 : 0 }));
   })();
+  const bestPerSales = perSales.length ? perSales.reduce((a, r) => (r.act > a.act ? r : a), perSales[0]).name : null;
   const spCols = perSales.length <= 3 ? Math.max(perSales.length, 1) : perSales.length <= 9 ? 3 : 4;
   const spDense = perSales.length > 4;
   const salesProducts = (
@@ -458,7 +454,7 @@ export function buildSalesSlides(data, { mode = "OMZET", plantName = "" } = {}) 
               <div key={sp.name} style={{ ...card, padding: spDense ? 9 : 14, display: "flex", flexDirection: "column", gap: spDense ? 5 : 8, minHeight: 0, overflow: "hidden" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <div style={{ width: spDense ? 30 : 40, height: spDense ? 30 : 40, borderRadius: 12, display: "grid", placeItems: "center", fontSize: 18, fontWeight: 900, color: "#fff", background: `linear-gradient(135deg, ${NAVY}, ${BLUE})`, flex: "none", position: "relative" }}>
-                    {sp.name.charAt(0).toUpperCase()}{si === 0 && <span style={{ position: "absolute", top: -9, right: -9, fontSize: 14 }}>🏆</span>}
+                    {sp.name.charAt(0).toUpperCase()}{sp.name === bestPerSales && <span style={{ position: "absolute", top: -9, right: -9, fontSize: 14 }}>🏆</span>}
                   </div>
                   <div style={{ minWidth: 0, flex: 1 }}>
                     <div title={sp.name} style={{ ...ellipsis, fontSize: 16, fontWeight: 900, color: NAVY, lineHeight: 1.2 }}>{sp.name}</div>
